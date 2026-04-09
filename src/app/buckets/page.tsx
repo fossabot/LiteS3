@@ -271,7 +271,7 @@ export default function BucketsPage() {
         )}
 
         {showForm && (
-          <div className="fixed inset- bg-overlay-primary flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-overlay-primary flex items-center justify-center p-4 z-50">
             <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-subtle p-6">
               <h2 className="text-xl font-medium text-text-primary mb-6">Add Storage Bucket</h2>
 

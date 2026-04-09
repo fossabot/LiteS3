@@ -90,12 +90,12 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
 
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 w-56 bg-surface-elevated rounded-lg border border-border-subtle shadow-lg z-50">
-          <div className="py-1">
+          <div className="p-1">
             {buckets.map((bucket) => (
               <button
                 key={bucket.id}
                 onClick={() => handleSelect(bucket.id)}
-                className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-hover-bg transition-colors"
+                className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-hover-bg rounded-md transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <Server className="w-4 h-4 text-text-tertiary" />
@@ -107,10 +107,10 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
               </button>
             ))}
           </div>
-          <div className="border-t border-border-subtle">
+          <div className="border-t border-border-subtle p-1">
             <a
               href="/buckets"
-              className="block px-3 py-2 text-sm text-text-tertiary hover:bg-hover-bg hover:text-text-secondary transition-colors"
+              className="block px-3 py-2 text-sm text-text-tertiary hover:bg-hover-bg hover:text-text-secondary rounded-md transition-colors"
             >
               Manage Buckets
             </a>
