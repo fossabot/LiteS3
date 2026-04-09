@@ -1,17 +1,83 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDatabase, schema, resetDatabase, setDatabaseInstance, type DatabaseConfig } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import { createDatabase, schema, setDatabaseInstance, getDatabase, ensureDatabase, type DatabaseConfig } from "@/lib/db";
+
+let initializationCheckCache: { checked: boolean; initialized: boolean } | null = null;
+
+async function checkIfInitialized(): Promise<boolean> {
+  if (initializationCheckCache?.checked) {
+    return initializationCheckCache.initialized;
+  }
+
+  try {
+    await ensureDatabase();
+    const db = getDatabase();
+
+    const setupCompleted = await db
+      .select()
+      .from(schema.systemSettings)
+      .where(eq(schema.systemSettings.key, "setup_completed"));
+
+    const isInitialized = setupCompleted.length > 0 && setupCompleted[0].value === "true";
+    
+    initializationCheckCache = { checked: true, initialized: isInitialized };
+    
+    return isInitialized;
+  } catch {
+    return false;
+  }
+}
+
+export async function GET() {
+  try {
+    const isInitialized = await checkIfInitialized();
+    return NextResponse.json({ initialized: isInitialized });
+  } catch (error) {
+    return NextResponse.json({ initialized: false });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const isInitialized = await checkIfInitialized();
+    if (isInitialized) {
+      console.warn("[SECURITY] Attempted to reinitialize already setup system");
+      return NextResponse.json(
+        { error: "System already initialized" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { step, config, admin } = body;
 
+    const envConfigStr = process.env.DATABASE_CONFIG;
+    let effectiveConfig: DatabaseConfig;
+    
+    if (envConfigStr) {
+      try {
+        effectiveConfig = JSON.parse(envConfigStr);
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid database configuration in environment" },
+          { status: 500 }
+        );
+      }
+    } else if (config) {
+      effectiveConfig = config;
+    } else {
+      return NextResponse.json(
+        { error: "No database configuration provided" },
+        { status: 400 }
+      );
+    }
+
     if (step === "test-connection") {
-      return await testConnection(config);
+      return await testConnection(effectiveConfig);
     }
 
     if (step === "initialize") {
-      return await initializeSystem(config, admin);
+      return await initializeSystem(effectiveConfig, admin);
     }
 
     return NextResponse.json({ error: "Invalid step" }, { status: 400 });
@@ -49,7 +115,6 @@ async function testConnection(config: DatabaseConfig) {
 
 async function initializeSystem(config: DatabaseConfig, admin: { username: string; password: string; email?: string }) {
   try {
-    resetDatabase();
     const db = await createDatabase(config);
     setDatabaseInstance(db, config);
 
@@ -79,10 +144,13 @@ async function initializeSystem(config: DatabaseConfig, admin: { username: strin
       updatedAt: now,
     });
 
+    initializationCheckCache = { checked: true, initialized: true };
+
+    console.log("[SECURITY] System initialized successfully");
+
     return NextResponse.json({ 
       success: true, 
       message: "System initialized successfully",
-      adminId 
     });
   } catch (error) {
     return NextResponse.json(
@@ -98,8 +166,4 @@ async function hashPassword(password: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-export async function GET() {
-  return NextResponse.json({ status: "ready" });
 }

@@ -3,13 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Moon, Sun, Monitor, MoreHorizontal } from "lucide-react";
 import { useTheme } from "./theme-provider";
-import { useLanguageStore, Language } from "@/store/language-store";
-import { useTranslation } from "@/hooks/use-translation";
+import { useTranslation, Language } from "@/hooks/use-translation";
 
 export function ThemeMenu() {
   const { theme, setTheme } = useTheme();
-  const { language, setLanguage } = useLanguageStore();
-  const { t } = useTranslation();
+  const { language, setLanguage, t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Database, User, Check, AlertCircle, Loader2 } from "lucide-react";
 import { ThemeMenu } from "@/components/theme-menu";
+import { NotFound } from "@/components/not-found";
 import { useTranslation } from "@/hooks/use-translation";
 
 type Step = "database" | "admin" | "complete";
@@ -35,6 +36,26 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionTested, setConnectionTested] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    const checkSetupStatus = async () => {
+      try {
+        const response = await fetch("/api/setup");
+        const data = await response.json();
+        if (data.initialized) {
+          setNotFound(true);
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to check setup status", e);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+    checkSetupStatus();
+  }, []);
 
   useEffect(() => {
     const loadEnvConfig = async () => {
@@ -53,6 +74,18 @@ export default function SetupPage() {
     };
     loadEnvConfig();
   }, []);
+
+  if (checkingStatus) {
+    return (
+      <div className="min-h-screen bg-bg-marketing flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-text-tertiary" />
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return <NotFound />;
+  }
 
   const testConnection = async () => {
     setLoading(true);

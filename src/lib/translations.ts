@@ -13,6 +13,11 @@ export const translations = {
       chinese: "中文",
       failedToLoad: "Failed to load",
     },
+    notFound: {
+      title: "Page not found",
+      description: "The page you're looking for doesn't exist or has been moved.",
+      redirecting: "Redirecting in {seconds}s...",
+    },
     auth: {
       signIn: "Sign In",
       username: "Username",
@@ -130,6 +135,11 @@ export const translations = {
       english: "English",
       chinese: "中文",
       failedToLoad: "加载失败",
+    },
+    notFound: {
+      title: "页面未找到",
+      description: "您访问的页面不存在或已被移动。",
+      redirecting: "{seconds}秒后跳转...",
     },
     auth: {
       signIn: "登录",
