@@ -2,6 +2,7 @@ import {
   S3Client,
   ListObjectsV2Command,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   HeadObjectCommand,
   CopyObjectCommand,
   PutObjectCommand,
@@ -173,6 +174,52 @@ export async function deleteObject(bucketId: string, key: string) {
   });
   
   return client.send(command);
+}
+
+export async function deleteFolder(bucketId: string, prefix: string) {
+  const config = await getBucketConfig(bucketId);
+  if (!config) throw new Error("Bucket not found");
+  
+  const client = createS3Client(config);
+  const normalizedPrefix = prefix.endsWith("/") ? prefix : prefix + "/";
+  
+  let continuationToken: string | undefined = undefined;
+  let totalDeleted = 0;
+  
+  do {
+    const listCommand = new ListObjectsV2Command({
+      Bucket: config.bucketName,
+      Prefix: normalizedPrefix,
+      MaxKeys: 1000,
+      ContinuationToken: continuationToken,
+    });
+    
+    const listResult = await client.send(listCommand);
+    const objects = listResult.Contents || [];
+    
+    if (objects.length > 0) {
+      const deleteCommand = new DeleteObjectsCommand({
+        Bucket: config.bucketName,
+        Delete: {
+          Objects: objects.map(obj => ({ Key: obj.Key! })),
+          Quiet: true,
+        },
+      });
+      
+      await client.send(deleteCommand);
+      totalDeleted += objects.length;
+    }
+    
+    continuationToken = listResult.IsTruncated ? listResult.NextContinuationToken : undefined;
+  } while (continuationToken);
+  
+  const folderCommand = new DeleteObjectCommand({
+    Bucket: config.bucketName,
+    Key: normalizedPrefix,
+  });
+  await client.send(folderCommand);
+  
+  return { deleted: totalDeleted };
 }
 
 export async function headObject(bucketId: string, key: string) {

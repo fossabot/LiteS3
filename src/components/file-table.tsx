@@ -1,17 +1,21 @@
 "use client";
 
 import { useFileStore, FileOrFolder } from "@/store/file-store";
-import { useFiles } from "@/hooks/use-files";
+import { useFiles, useMoveFile, useCopyFile } from "@/hooks/use-files";
 import { useUpload } from "@/hooks/use-upload";
 import { useSelectionBox } from "@/hooks/use-selection-box";
-import { useDeleteFile, useFileLink } from "@/hooks/use-files";
+import { useFileLink } from "@/hooks/use-files";
 import { FileCard, FileCardSkeleton } from "./file-card";
 import { FileListItem } from "./file-list-item";
-import { LayoutGrid, List, ChevronRight, ChevronLeft, Home, Loader2, Upload, X, Download, Move, Copy, Trash2 } from "lucide-react";
+import { NewFolderDialog } from "./dialogs/new-folder-dialog";
+import { RenameDialog } from "./dialogs/rename-dialog";
+import { MoveCopyDialog } from "./dialogs/move-copy-dialog";
+import { DeleteProgressDialog } from "./dialogs/delete-progress-dialog";
+import { LayoutGrid, List, ChevronRight, ChevronLeft, Home, Upload, X, Download, Move, Copy, Trash2, FolderPlus } from "lucide-react";
 import { Button } from "./ui/button";
 import { useRef, useCallback } from "react";
 import { useTranslation } from "@/hooks/use-translation";
-import { cn, formatBytes } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 30;
 
@@ -20,11 +24,16 @@ export function FileTable() {
     currentPrefix, pathStack, searchQuery, viewMode, currentPage,
     navigateUp, setCurrentPrefix, setViewMode, setCurrentPage,
     setSelectedItems, selectedItems, clearSelection,
+    renameItem, closeRenameDialog,
+    moveCopyItem, moveCopyMode, closeMoveCopyDialog,
+    newFolderOpen, openNewFolderDialog, closeNewFolderDialog,
+    deleteItems, deleteDialogOpen, startDelete, closeDeleteDialog,
   } = useFileStore();
   const { data, isLoading, error } = useFiles(currentPrefix);
   const { activeUploads, uploadFiles, removeUpload } = useUpload();
-  const deleteMutation = useDeleteFile();
   const linkMutation = useFileLink();
+  const moveMutation = useMoveFile();
+  const copyMutation = useCopyFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
@@ -77,19 +86,50 @@ export function FileTable() {
 
   const handleBatchDelete = () => {
     const keys = Array.from(selectedItems);
-    const itemNames = keys.map(key => key.split("/").filter(Boolean).pop()).join(", ");
-    if (confirm(`确定要删除选中的 ${keys.length} 个项目吗？\n${itemNames}`)) {
-      keys.forEach(key => deleteMutation.mutate(key));
+    if (confirm(`${t("files.confirmDeleteSelected")}`)) {
+      startDelete(keys);
       clearSelection();
     }
   };
 
-  const handleBatchMove = () => {
-    alert("批量移动功能开发中");
+  const handleBatchMove = async () => {
+    const keys = Array.from(selectedItems);
+    if (keys.length === 0) return;
+    
+    const targetPath = prompt(`${t("files.selectFolder")}:`, "");
+    if (!targetPath && targetPath !== "") return;
+    
+    try {
+      for (const key of keys) {
+        const name = key.split("/").filter(Boolean).pop() || "";
+        const isFolder = key.endsWith("/");
+        const destKey = (targetPath || "") + name + (isFolder ? "/" : "");
+        await moveMutation.mutateAsync({ sourceKey: key, destKey });
+      }
+      clearSelection();
+    } catch (error) {
+      console.error("Batch move failed:", error);
+    }
   };
 
-  const handleBatchCopy = () => {
-    alert("批量复制功能开发中");
+  const handleBatchCopy = async () => {
+    const keys = Array.from(selectedItems);
+    if (keys.length === 0) return;
+    
+    const targetPath = prompt(`${t("files.selectFolder")}:`, "");
+    if (!targetPath && targetPath !== "") return;
+    
+    try {
+      for (const key of keys) {
+        const name = key.split("/").filter(Boolean).pop() || "";
+        const isFolder = key.endsWith("/");
+        const destKey = (targetPath || "") + name + (isFolder ? "/" : "");
+        await copyMutation.mutateAsync({ sourceKey: key, destKey });
+      }
+      clearSelection();
+    } catch (error) {
+      console.error("Batch copy failed:", error);
+    }
   };
 
   return (
@@ -160,6 +200,13 @@ export function FileTable() {
               <List className="h-4 w-4" />
             </button>
           </div>
+          <button
+            onClick={openNewFolderDialog}
+            className="flex items-center gap-1.5 px-3 h-9 rounded-md border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-hover-bg text-sm transition-colors"
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t("files.newFolder")}</span>
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -341,6 +388,11 @@ export function FileTable() {
           </div>
         </div>
       )}
+
+      <NewFolderDialog open={newFolderOpen} onOpenChange={closeNewFolderDialog} />
+      <RenameDialog open={!!renameItem} onOpenChange={closeRenameDialog} item={renameItem} />
+      <MoveCopyDialog open={!!moveCopyItem} onOpenChange={closeMoveCopyDialog} item={moveCopyItem} mode={moveCopyMode} />
+      <DeleteProgressDialog open={deleteDialogOpen} onOpenChange={closeDeleteDialog} items={deleteItems} />
     </div>
   );
 }

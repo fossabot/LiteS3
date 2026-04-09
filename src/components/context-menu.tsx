@@ -2,14 +2,15 @@
 
 import { useEffect } from "react";
 import { useFileStore } from "@/store/file-store";
-import { useDeleteFile, useFileLink } from "@/hooks/use-files";
+import { useFileLink } from "@/hooks/use-files";
+import { useTranslation } from "@/hooks/use-translation";
 import { Pencil, Trash2, Copy, Move, Link, Download, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function ContextMenu() {
-  const { contextMenu, closeContextMenu, setPreviewItem } = useFileStore();
-  const deleteMutation = useDeleteFile();
+  const { contextMenu, closeContextMenu, setPreviewItem, openRenameDialog, openMoveDialog, openCopyDialog, startDelete } = useFileStore();
   const linkMutation = useFileLink();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -35,8 +36,8 @@ export function ContextMenu() {
 
   const handleDelete = () => {
     closeContextMenu();
-    if (confirm(`确定要删除 ${item.name} 吗？`)) {
-      deleteMutation.mutate(item.key);
+    if (confirm(`${t("files.confirmDelete")} ${item.name}？`)) {
+      startDelete([item.key]);
     }
   };
 
@@ -45,7 +46,7 @@ export function ContextMenu() {
     const result = await linkMutation.mutateAsync({ key: item.key });
     if (result.url) {
       await navigator.clipboard.writeText(result.url);
-      alert("链接已复制到剪贴板");
+      alert(t("files.copyLink"));
     }
   };
 
@@ -62,6 +63,18 @@ export function ContextMenu() {
     setPreviewItem(item);
   };
 
+  const handleRename = () => {
+    openRenameDialog(item);
+  };
+
+  const handleMove = () => {
+    openMoveDialog(item);
+  };
+
+  const handleCopy = () => {
+    openCopyDialog(item);
+  };
+
   return (
     <div
       className={cn(
@@ -73,29 +86,29 @@ export function ContextMenu() {
       {!isFolder && (
         <>
           <MenuItem onClick={handlePreview}>
-            <Eye className="mr-2 h-4 w-4" /> 预览
+            <Eye className="mr-2 h-4 w-4" /> {t("files.preview")}
           </MenuItem>
           <MenuItem onClick={handleDownload}>
-            <Download className="mr-2 h-4 w-4" /> 下载
+            <Download className="mr-2 h-4 w-4" /> {t("files.download")}
           </MenuItem>
           <MenuItem onClick={handleCopyLink}>
-            <Link className="mr-2 h-4 w-4" /> 复制链接
+            <Link className="mr-2 h-4 w-4" /> {t("files.copyLink")}
           </MenuItem>
           <MenuSeparator />
         </>
       )}
-      <MenuItem>
-        <Pencil className="mr-2 h-4 w-4" /> 重命名
+      <MenuItem onClick={handleRename}>
+        <Pencil className="mr-2 h-4 w-4" /> {t("files.rename")}
       </MenuItem>
-      <MenuItem>
-        <Move className="mr-2 h-4 w-4" /> 移动
+      <MenuItem onClick={handleMove}>
+        <Move className="mr-2 h-4 w-4" /> {t("files.move")}
       </MenuItem>
-      <MenuItem>
-        <Copy className="mr-2 h-4 w-4" /> 复制
+      <MenuItem onClick={handleCopy}>
+        <Copy className="mr-2 h-4 w-4" /> {t("files.copy")}
       </MenuItem>
       <MenuSeparator />
       <MenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
-        <Trash2 className="mr-2 h-4 w-4" /> 删除
+        <Trash2 className="mr-2 h-4 w-4" /> {t("files.delete")}
       </MenuItem>
     </div>
   );

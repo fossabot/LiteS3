@@ -59,6 +59,26 @@ async function copyFile({ sourceKey, destKey }: { sourceKey: string; destKey: st
   return res.json();
 }
 
+async function createFolder(key: string) {
+  const res = await fetch("/api/files/folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key }),
+  });
+  if (!res.ok) throw new Error("Failed to create folder");
+  return res.json();
+}
+
+async function renameFile({ sourceKey, destKey }: { sourceKey: string; destKey: string }) {
+  const res = await fetch("/api/files/rename", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sourceKey, destKey }),
+  });
+  if (!res.ok) throw new Error("Failed to rename file");
+  return res.json();
+}
+
 export function useFiles(prefix: string) {
   return useQuery({
     queryKey: ["files", prefix],
@@ -116,6 +136,26 @@ export function useCopyFile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: copyFile,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+    },
+  });
+}
+
+export function useCreateFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createFolder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+    },
+  });
+}
+
+export function useRenameFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: renameFile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files"] });
     },

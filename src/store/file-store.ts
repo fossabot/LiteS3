@@ -25,6 +25,12 @@ interface FileStore {
   viewMode: "grid" | "list";
   contextMenu: { item: FileOrFolder; x: number; y: number } | null;
   currentPage: number;
+  renameItem: FileOrFolder | null;
+  moveCopyItem: FileOrFolder | null;
+  moveCopyMode: "move" | "copy";
+  newFolderOpen: boolean;
+  deleteItems: string[];
+  deleteDialogOpen: boolean;
 
   setCurrentPrefix: (prefix: string) => void;
   navigateToFolder: (folderKey: string) => void;
@@ -38,6 +44,15 @@ interface FileStore {
   openContextMenu: (item: FileOrFolder, x: number, y: number) => void;
   closeContextMenu: () => void;
   setCurrentPage: (page: number) => void;
+  openRenameDialog: (item: FileOrFolder) => void;
+  closeRenameDialog: () => void;
+  openMoveDialog: (item: FileOrFolder) => void;
+  openCopyDialog: (item: FileOrFolder) => void;
+  closeMoveCopyDialog: () => void;
+  openNewFolderDialog: () => void;
+  closeNewFolderDialog: () => void;
+  startDelete: (items: string[]) => void;
+  closeDeleteDialog: () => void;
 }
 
 export const useFileStore = create<FileStore>((set, get) => ({
@@ -49,6 +64,12 @@ export const useFileStore = create<FileStore>((set, get) => ({
   viewMode: "grid",
   contextMenu: null,
   currentPage: 1,
+  renameItem: null,
+  moveCopyItem: null,
+  moveCopyMode: "move",
+  newFolderOpen: false,
+  deleteItems: [],
+  deleteDialogOpen: false,
 
   setCurrentPrefix: (prefix) => set({ currentPrefix: prefix }),
 
@@ -101,4 +122,17 @@ export const useFileStore = create<FileStore>((set, get) => ({
   openContextMenu: (item, x, y) => set({ contextMenu: { item, x, y } }),
   closeContextMenu: () => set({ contextMenu: null }),
   setCurrentPage: (page) => set({ currentPage: page }),
+  
+  openRenameDialog: (item) => set({ renameItem: item, contextMenu: null }),
+  closeRenameDialog: () => set({ renameItem: null }),
+  
+  openMoveDialog: (item) => set({ moveCopyItem: item, moveCopyMode: "move", contextMenu: null }),
+  openCopyDialog: (item) => set({ moveCopyItem: item, moveCopyMode: "copy", contextMenu: null }),
+  closeMoveCopyDialog: () => set({ moveCopyItem: null }),
+  
+  openNewFolderDialog: () => set({ newFolderOpen: true }),
+  closeNewFolderDialog: () => set({ newFolderOpen: false }),
+  
+  startDelete: (items) => set({ deleteItems: items, deleteDialogOpen: true, contextMenu: null }),
+  closeDeleteDialog: () => set({ deleteDialogOpen: false, deleteItems: [] }),
 }));

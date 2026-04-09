@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { deleteObject, getDefaultBucket } from "@/lib/s3";
+import { deleteObject, deleteFolder, getDefaultBucket } from "@/lib/s3";
 import { ensureDatabase } from "@/lib/db";
 
 export async function DELETE(request: Request) {
@@ -26,8 +26,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "No bucket configured" }, { status: 400 });
     }
 
-    await deleteObject(bucketId || bucket.id, key);
-    return NextResponse.json({ success: true });
+    const targetBucketId = bucketId || bucket.id;
+    
+    if (key.endsWith("/")) {
+      const result = await deleteFolder(targetBucketId, key);
+      return NextResponse.json({ success: true, deleted: result.deleted });
+    } else {
+      await deleteObject(targetBucketId, key);
+      return NextResponse.json({ success: true });
+    }
   } catch (error: any) {
     console.error("DELETE /api/files/delete error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

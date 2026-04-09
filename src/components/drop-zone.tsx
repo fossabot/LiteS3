@@ -66,9 +66,9 @@ export function DropZone() {
             {activeUploads.map((upload) => (
               <div key={upload.id} className="flex items-center gap-2 px-2 py-1.5">
                 {upload.status === "uploading" ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-brand-indigo flex-shrink-0" />
+                  <Loader2 className="h-4 w-4 animate-spin text-brand-indigo shrink-0" />
                 ) : upload.status === "error" ? (
-                  <X className="h-4 w-4 text-destructive flex-shrink-0" />
+                  <X className="h-4 w-4 text-destructive shrink-0" />
                 ) : null}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs truncate text-text-primary">{upload.file.name}</p>
@@ -84,7 +84,7 @@ export function DropZone() {
                     </span>
                   </div>
                 </div>
-                <button onClick={() => removeUpload(upload.id)} className="flex-shrink-0">
+                <button onClick={() => removeUpload(upload.id)} className="shrink-0">
                   <X className="h-3 w-3 text-text-tertiary hover:text-text-primary" />
                 </button>
               </div>
