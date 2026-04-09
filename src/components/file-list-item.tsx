@@ -38,8 +38,8 @@ export function FileListItem({ item }: FileListItemProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-md transition-[background-color] duration-150 hover:bg-accent cursor-pointer",
-        isSelected && "bg-accent ring-1 ring-primary/20"
+        "flex items-center gap-3 px-3 py-2 rounded-md transition-colors duration-150 hover:bg-hover-bg cursor-pointer",
+        isSelected && "bg-hover-bg ring-1 ring-brand-indigo/20"
       )}
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 40px" }}
       onClick={handleClick}
@@ -49,11 +49,11 @@ export function FileListItem({ item }: FileListItemProps) {
         <div
           className={cn(
             "h-4 w-4 rounded border transition-colors shrink-0",
-            isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"
+            isSelected ? "bg-brand-indigo border-brand-indigo" : "border-text-quaternary/30"
           )}
         >
           {isSelected && (
-            <svg className="h-4 w-4 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           )}
@@ -65,19 +65,19 @@ export function FileListItem({ item }: FileListItemProps) {
       ) : hasThumbnail ? (
         <Thumbnail name={item.name} itemKey={item.key} size="list" />
       ) : (
-        <FileIcon name={item.name} className="h-5 w-5 text-muted-foreground shrink-0" />
+        <FileIcon name={item.name} className="h-5 w-5 text-text-tertiary shrink-0" />
       )}
 
-      <span className="flex-1 text-sm truncate">{item.name}</span>
+      <span className="flex-1 text-sm truncate text-text-primary">{item.name}</span>
 
       {!isFolder && "size" in item && (
-        <span className="text-xs text-muted-foreground w-20 text-right shrink-0">
+        <span className="text-xs text-text-tertiary w-20 text-right shrink-0">
           {formatBytes(item.size)}
         </span>
       )}
 
       {!isFolder && "lastModified" in item && (
-        <span className="text-xs text-muted-foreground w-36 text-right shrink-0">
+        <span className="text-xs text-text-tertiary w-36 text-right shrink-0">
           {formatDate(item.lastModified)}
         </span>
       )}

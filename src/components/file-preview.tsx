@@ -72,7 +72,7 @@ export function FilePreview() {
         <div className="flex-1 min-h-0 mt-4">
           {loading ? (
             <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Loader2 className="h-8 w-8 animate-spin text-text-tertiary" />
             </div>
           ) : isImageFile(fileItem.name) ? (
             <ImagePreview fileKey={fileItem.key} />
@@ -96,7 +96,7 @@ export function FilePreview() {
               </SyntaxHighlighter>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
+            <div className="flex items-center justify-center h-full text-text-tertiary">
               此文件类型暂不支持预览
             </div>
           )}
@@ -121,7 +121,7 @@ function ImagePreview({ fileKey }: { fileKey: string }) {
   return (
     <div className="flex items-center justify-center h-full relative">
       {!loaded && (
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-text-tertiary" />
       )}
       {url && (
         <img
@@ -149,7 +149,7 @@ function MediaPreview({ fileKey, type }: { fileKey: string; type: "video" | "aud
   if (!url) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-text-tertiary" />
       </div>
     );
   }

@@ -126,12 +126,12 @@ export function DropZone() {
         onDrop={handleDrop}
         className={cn(
           "fixed inset-0 z-40 pointer-events-none transition-all",
-          isDragging && "pointer-events-auto bg-primary/5 border-2 border-dashed border-primary/50"
+          isDragging && "pointer-events-auto bg-brand-indigo/5 border-2 border-dashed border-brand-indigo/50"
         )}
       >
         {isDragging && (
           <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-2 text-primary">
+            <div className="flex flex-col items-center gap-2 text-brand-indigo">
               <UploadCloud className="h-16 w-16" />
               <p className="text-lg font-medium">释放以上传文件</p>
             </div>
@@ -140,10 +140,10 @@ export function DropZone() {
       </div>
 
       {activeUploads.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border bg-card shadow-lg">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <span className="text-sm font-medium">上传中</span>
-            <span className="text-xs text-muted-foreground">
+        <div className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border border-border-subtle bg-surface-elevated shadow-lg">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+            <span className="text-sm font-medium text-text-primary">上传中</span>
+            <span className="text-xs text-text-tertiary">
               {activeUploads.filter((u) => u.status === "done").length}/{uploads.length}
             </span>
           </div>
@@ -151,26 +151,26 @@ export function DropZone() {
             {activeUploads.map((upload) => (
               <div key={upload.key} className="flex items-center gap-2 px-2 py-1.5">
                 {upload.status === "uploading" ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                  <Loader2 className="h-4 w-4 animate-spin text-brand-indigo flex-shrink-0" />
                 ) : upload.status === "error" ? (
                   <X className="h-4 w-4 text-destructive flex-shrink-0" />
                 ) : null}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs truncate">{upload.file.name}</p>
+                  <p className="text-xs truncate text-text-primary">{upload.file.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                    <div className="flex-1 h-1 bg-hover-bg rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-primary rounded-full transition-all"
+                        className="h-full bg-brand-indigo rounded-full transition-all"
                         style={{ width: `${upload.progress}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-text-tertiary">
                       {formatBytes(upload.file.size)}
                     </span>
                   </div>
                 </div>
                 <button onClick={() => removeUpload(upload.key)} className="flex-shrink-0">
-                  <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  <X className="h-3 w-3 text-text-tertiary hover:text-text-primary" />
                 </button>
               </div>
             ))}

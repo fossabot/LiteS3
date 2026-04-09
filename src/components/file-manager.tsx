@@ -41,7 +41,7 @@ export function FileManager() {
       <div className="flex flex-col h-screen bg-bg-marketing">
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-md text-center">
-            <div className="w-16 h-16 rounded-2xl bg-hover-bg border border-border-standard flex items-center justify-center mx-auto mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-hover-bg border border-border-subtle flex items-center justify-center mx-auto mb-6">
               <Server className="h-8 w-8 text-brand-indigo" />
             </div>
             <h2 className="text-2xl font-medium text-text-primary mb-3" style={{ letterSpacing: "-0.704px" }}>
@@ -51,7 +51,7 @@ export function FileManager() {
               Add your first S3-compatible storage bucket to start managing files. Supports AWS S3, Cloudflare R2, MinIO, and more.
             </p>
             <Link href="/buckets">
-              <Button className="bg-brand-indigo hover:bg-accent-violet text-white px-6 py-2.5 rounded-lg font-medium">
+              <Button className="bg-brand-indigo hover:bg-accent-hover text-white px-6 py-2.5 rounded-lg font-medium">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Bucket
               </Button>

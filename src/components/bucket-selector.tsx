@@ -89,7 +89,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-56 bg-surface-elevated rounded-lg border border-border-standard shadow-lg z-50">
+        <div className="absolute top-full left-0 mt-1 w-56 bg-surface-elevated rounded-lg border border-border-subtle shadow-lg z-50">
           <div className="py-1">
             {buckets.map((bucket) => (
               <button
@@ -107,7 +107,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
               </button>
             ))}
           </div>
-          <div className="border-t border-border-standard">
+          <div className="border-t border-border-subtle">
             <a
               href="/buckets"
               className="block px-3 py-2 text-sm text-text-tertiary hover:bg-hover-bg hover:text-text-secondary transition-colors"

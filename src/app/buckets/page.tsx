@@ -203,7 +203,7 @@ export default function BucketsPage() {
             <Loader2 className="w-6 h-6 animate-spin text-brand-indigo" />
           </div>
         ) : buckets.length === 0 ? (
-          <div className="text-center py-12 bg-bg-panel rounded-xl border border-border-standard">
+          <div className="text-center py-12 bg-bg-panel rounded-xl border border-border-subtle">
             <Server className="w-12 h-12 text-text-quaternary mx-auto mb-4" />
             <p className="text-text-tertiary">No storage buckets configured yet</p>
             <p className="text-text-quaternary text-sm mt-1">Click "Add Bucket" to get started</p>
@@ -213,7 +213,7 @@ export default function BucketsPage() {
             {buckets.map((bucket) => (
               <div
                 key={bucket.id}
-                className="bg-bg-panel rounded-xl border border-border-standard p-4 hover:border-border-tertiary transition-colors"
+                className="bg-bg-panel rounded-xl border border-border-subtle p-4 hover:border-border-standard transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -244,7 +244,7 @@ export default function BucketsPage() {
                     </button>
 
                     {openMenu === bucket.id && (
-                      <div className="absolute right-0 top-full mt-1 w-48 bg-surface-elevated rounded-lg border border-border-standard shadow-lg z-10">
+                      <div className="absolute right-0 top-full mt-1 w-48 bg-surface-elevated rounded-lg border border-border-subtle shadow-lg z-10">
                         {!bucket.isDefault && (
                           <button
                             onClick={() => handleSetDefault(bucket.id)}
@@ -272,7 +272,7 @@ export default function BucketsPage() {
 
         {showForm && (
           <div className="fixed inset- bg-overlay-primary flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-standard p-6">
+            <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-subtle p-6">
               <h2 className="text-xl font-medium text-text-primary mb-6">Add Storage Bucket</h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -286,7 +286,7 @@ export default function BucketsPage() {
                     onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                     placeholder="My S3 Storage"
                     required
-                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
+                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo"
                   />
                 </div>
 
@@ -301,7 +301,7 @@ export default function BucketsPage() {
                       onChange={(e) => setFormData((prev) => ({ ...prev, endpoint: e.target.value }))}
                       placeholder="https://s3.amazonaws.com"
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo"
                     />
                   </div>
                   <div>
@@ -313,7 +313,7 @@ export default function BucketsPage() {
                       value={formData.region}
                       onChange={(e) => setFormData((prev) => ({ ...prev, region: e.target.value }))}
                       placeholder="auto"
-                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo"
                     />
                   </div>
                 </div>
@@ -328,7 +328,7 @@ export default function BucketsPage() {
                     onChange={(e) => setFormData((prev) => ({ ...prev, bucketName: e.target.value }))}
                     placeholder="my-bucket"
                     required
-                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
+                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo"
                   />
                 </div>
 
@@ -343,7 +343,7 @@ export default function BucketsPage() {
                       onChange={(e) => setFormData((prev) => ({ ...prev, accessKeyId: e.target.value }))}
                       placeholder="AKIA..."
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo"
                     />
                   </div>
                   <div>
@@ -356,7 +356,7 @@ export default function BucketsPage() {
                       onChange={(e) => setFormData((prev) => ({ ...prev, secretAccessKey: e.target.value }))}
                       placeholder="••••••••"
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo"
                     />
                   </div>
                 </div>
@@ -370,7 +370,7 @@ export default function BucketsPage() {
                     value={formData.publicUrl}
                     onChange={(e) => setFormData((prev) => ({ ...prev, publicUrl: e.target.value }))}
                     placeholder="https://cdn.example.com"
-                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
+                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo"
                   />
                 </div>
 

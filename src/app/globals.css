@@ -26,6 +26,7 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
+  --radius-xl: 12px;
   
   --color-bg-marketing: var(--bg-marketing);
   --color-bg-panel: var(--bg-panel);
@@ -39,11 +40,20 @@
   
   --color-brand-indigo: var(--brand-indigo);
   --color-accent-violet: var(--accent-violet);
+  --color-accent-hover: var(--accent-hover);
   
   --color-border-subtle: var(--border-subtle);
   --color-border-standard: var(--border-standard);
+  --color-border-primary: var(--border-primary);
   
   --color-hover-bg: var(--hover-bg);
+  --color-success-green: var(--success-green);
+  --color-success-emerald: var(--success-emerald);
+  
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 510;
+  --font-weight-semibold: 590;
 }
 
 :root {

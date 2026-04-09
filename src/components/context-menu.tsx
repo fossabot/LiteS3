@@ -65,7 +65,7 @@ export function ContextMenu() {
   return (
     <div
       className={cn(
-        "fixed z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+        "fixed z-50 min-w-32 overflow-hidden rounded-lg border border-border-subtle bg-surface-elevated p-1 text-text-primary shadow-lg animate-in fade-in-0 zoom-in-95"
       )}
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
@@ -113,7 +113,7 @@ function MenuItem({
   return (
     <div
       className={cn(
-        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+        "relative flex cursor-pointer select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-colors hover:bg-hover-bg text-text-secondary hover:text-text-primary",
         className
       )}
       onClick={onClick}
@@ -124,5 +124,5 @@ function MenuItem({
 }
 
 function MenuSeparator() {
-  return <div className="-mx-1 my-1 h-px bg-muted" />;
+  return <div className="-mx-1 my-1 h-px bg-border-subtle" />;
 }

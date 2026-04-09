@@ -17,13 +17,13 @@ export function Navbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 border-b border-border-standard bg-bg-panel/95 backdrop-blur supports-backdrop-filter:bg-bg-panel/60">
+    <header className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 border-b border-border-subtle bg-bg-panel/95 backdrop-blur supports-backdrop-filter:bg-bg-panel/60">
       <div className="flex items-center gap-3">
         <Link href="/" className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-brand-indigo flex items-center justify-center">
             <span className="text-white font-medium text-sm">S3</span>
           </div>
-          <h1 className="text-base font-medium text-text-primary hidden sm:block">S3 Manager</h1>
+          <h1 className="text-sm font-medium text-text-primary hidden sm:block" style={{ letterSpacing: "-0.13px" }}>S3 Manager</h1>
         </Link>
         <BucketSelector />
       </div>
@@ -34,7 +34,7 @@ export function Navbar() {
           placeholder="Search files..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9 h-9 bg-hover-bg border-border-standard text-text-primary placeholder-text-quaternary focus:border-brand-indigo"
+          className="pl-9 h-9 bg-hover-bg border-border-subtle text-text-primary placeholder:text-text-quaternary focus:border-brand-indigo"
         />
       </div>
 
@@ -52,17 +52,17 @@ export function Navbar() {
           variant="ghost"
           size="icon"
           onClick={() => fileInputRef.current?.click()}
-          className="h-8 w-8 rounded-lg hover:bg-hover-bg"
+          className="h-8 w-8 rounded-lg"
         >
-          <UploadCloud className="h-4 w-4 text-text-tertiary" />
+          <UploadCloud className="h-4 w-4" />
         </Button>
         <Link href="/buckets">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-lg hover:bg-hover-bg"
+            className="h-8 w-8 rounded-lg"
           >
-            <Server className="h-4 w-4 text-text-tertiary" />
+            <Server className="h-4 w-4" />
           </Button>
         </Link>
         <Tooltip content="Toggle theme" side="bottom">
@@ -70,9 +70,9 @@ export function Navbar() {
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="h-8 w-8 rounded-lg hover:bg-hover-bg"
+            className="h-8 w-8 rounded-lg"
           >
-            {theme === "dark" ? <Sun className="h-4 w-4 text-text-tertiary" /> : <Moon className="h-4 w-4 text-text-tertiary" />}
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
         </Tooltip>
         <Tooltip content="Sign out" side="bottom">
@@ -80,9 +80,9 @@ export function Navbar() {
             variant="ghost"
             size="icon"
             onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-            className="h-8 w-8 rounded-lg hover:bg-hover-bg"
+            className="h-8 w-8 rounded-lg"
           >
-            <LogOut className="h-4 w-4 text-text-tertiary" />
+            <LogOut className="h-4 w-4" />
           </Button>
         </Tooltip>
       </div>

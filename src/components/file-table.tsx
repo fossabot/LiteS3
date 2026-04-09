@@ -35,7 +35,7 @@ export function FileTable() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border-standard bg-bg-panel">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border-subtle bg-bg-panel">
         <Button
           variant="ghost"
           size="icon"
@@ -43,9 +43,9 @@ export function FileTable() {
             if (pathStack.length > 0) navigateUp();
           }}
           disabled={pathStack.length === 0}
-          className="h-8 w-8 rounded-lg hover:bg-hover-bg disabled:opacity-50"
+          className="h-8 w-8 rounded-lg disabled:opacity-50"
         >
-          <Home className="h-4 w-4 text-text-tertiary" />
+          <Home className="h-4 w-4" />
         </Button>
 
         <div className="flex items-center gap-1 text-sm text-text-quaternary overflow-x-auto flex-1">
@@ -89,7 +89,7 @@ export function FileTable() {
             onClick={() => setViewMode("grid")}
             className="h-8 w-8 rounded-lg"
           >
-            <LayoutGrid className="h-4 w-4 text-text-tertiary" />
+            <LayoutGrid className="h-4 w-4" />
           </Button>
           <Button
             variant={viewMode === "list" ? "secondary" : "ghost"}
@@ -97,7 +97,7 @@ export function FileTable() {
             onClick={() => setViewMode("list")}
             className="h-8 w-8 rounded-lg"
           >
-            <List className="h-4 w-4 text-text-tertiary" />
+            <List className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -142,7 +142,7 @@ export function FileTable() {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-2 border-t border-border-standard bg-bg-panel">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-border-subtle bg-bg-panel">
           <span className="text-xs text-text-quaternary">
             {filteredItems.length} items, page {safePage}/{totalPages}
           </span>
@@ -154,7 +154,7 @@ export function FileTable() {
               disabled={safePage <= 1}
               onClick={() => setCurrentPage(safePage - 1)}
             >
-              <ChevronLeft className="h-4 w-4 text-text-tertiary" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
             {generatePageNumbers(safePage, totalPages).map((p, i) =>
               p === "..." ? (
@@ -178,7 +178,7 @@ export function FileTable() {
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage(safePage + 1)}
             >
-              <ChevronRight className="h-4 w-4 text-text-tertiary" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
