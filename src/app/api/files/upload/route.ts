@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { uploadObject, getDefaultBucket } from "@/lib/s3";
+import { uploadObject, getDefaultBucket, getBucketConfig } from "@/lib/s3";
 import { ensureDatabase } from "@/lib/db";
+
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -26,7 +28,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Key is required" }, { status: 400 });
     }
 
-    const bucket = await getDefaultBucket();
+    if (file.size > MAX_UPLOAD_SIZE) {
+      return NextResponse.json({ error: "File size exceeds 100MB limit" }, { status: 413 });
+    }
+
+    const bucket = bucketId ? await getBucketConfig(bucketId) : await getDefaultBucket();
     if (!bucket) {
       return NextResponse.json({ error: "No bucket configured" }, { status: 400 });
     }
@@ -42,8 +48,8 @@ export async function POST(request: Request) {
     );
 
     return NextResponse.json({ success: true, key });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("POST /api/files/upload error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }

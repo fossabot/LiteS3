@@ -32,7 +32,6 @@ export function SignInForm() {
         setError(t("auth.invalidCredentials"));
       } else {
         router.push("/");
-        router.refresh();
       }
     } catch {
       setError(t("auth.signInFailed"));

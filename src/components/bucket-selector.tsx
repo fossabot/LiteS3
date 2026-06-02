@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Server, Check, Loader2, Plus, Trash2, Star, Settings, X, AlertCircle, Pencil, ArrowLeft } from "lucide-react";
+import { ChevronDown, Server, Check, Loader2, Plus, Trash2, Star, Settings, X, AlertCircle, Pencil, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useTranslation } from "@/hooks/use-translation";
+import { useBuckets } from "@/hooks/use-files";
+import { useQueryClient } from "@tanstack/react-query";
+import { mapConnectionError } from "@/lib/utils";
 
 interface Bucket {
   id: string;
@@ -40,8 +43,9 @@ interface BucketSelectorProps {
 
 export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelectorProps) {
   const { t } = useTranslation();
-  const [buckets, setBuckets] = useState<Bucket[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: bucketsData, isLoading: loading } = useBuckets();
+  const queryClient = useQueryClient();
+  const buckets: Bucket[] = bucketsData?.buckets || [];
   const [isOpen, setIsOpen] = useState(false);
   const [showManager, setShowManager] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -49,11 +53,12 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
   const [formData, setFormData] = useState<BucketFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchBuckets();
-  }, []);
+  const invalidateBuckets = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["buckets"] });
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -65,18 +70,6 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const fetchBuckets = async () => {
-    try {
-      const response = await fetch("/api/buckets");
-      const data = await response.json();
-      setBuckets(data.buckets || []);
-    } catch (err) {
-      console.error("Failed to fetch buckets:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const currentBucket = buckets.find((b) => b.id === currentBucketId) || 
     buckets.find((b) => b.isDefault) || 
@@ -96,7 +89,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
       });
       const data = await response.json();
       if (data.success) {
-        await fetchBuckets();
+        await invalidateBuckets();
       }
     } catch (err) {
       console.error("Failed to set default bucket:", err);
@@ -104,12 +97,22 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t("buckets.deleteConfirm"))) return;
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    const id = deleteConfirmId;
+    setDeleteConfirmId(null);
+    if (!id) return;
     try {
       const response = await fetch(`/api/buckets/${id}`, { method: "DELETE" });
       const data = await response.json();
       if (data.success) {
-        await fetchBuckets();
+        if (id === currentBucketId) {
+          const remaining = buckets.filter(b => b.id !== id);
+          onBucketChange?.(remaining[0]?.id || "");
+        }
+        await invalidateBuckets();
       }
     } catch (err) {
       console.error("Failed to delete bucket:", err);
@@ -154,7 +157,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
       const data = await response.json();
       setTestResult({
         success: data.success,
-        message: data.success ? t("buckets.connectionSuccess") : data.error || t("buckets.connectionFailed"),
+        message: data.success ? t("buckets.connectionSuccess") : mapConnectionError(data.error, t),
       });
     } catch (err) {
       setTestResult({
@@ -189,7 +192,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
       const data = await response.json();
 
       if (data.success) {
-        await fetchBuckets();
+        await invalidateBuckets();
         setShowForm(false);
         setEditingId(null);
         setFormData(initialFormData);
@@ -197,7 +200,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
       } else {
         setTestResult({
           success: false,
-          message: data.error || t("buckets.saveFailed"),
+          message: mapConnectionError(data.error, t),
         });
       }
     } catch (err) {
@@ -235,13 +238,176 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
 
   if (buckets.length === 0) {
     return (
-      <button
-        onClick={() => setShowForm(true)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-hover-bg text-text-tertiary hover:bg-surface-elevated transition-colors text-sm"
-      >
-        <Plus className="w-4 h-4" />
-        {t("buckets.addBucket")}
-      </button>
+      <>
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-hover-bg text-text-tertiary hover:bg-surface-elevated transition-colors text-sm cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          {t("buckets.addBucket")}
+        </button>
+
+        {showForm && createPortal(
+          <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={closeForm}>
+            <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-subtle overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
+                <h2 className="text-lg font-medium text-text-primary">
+                  {t("buckets.addStorageBucket")}
+                </h2>
+                <button
+                  onClick={closeForm}
+                  className="p-1.5 rounded-lg hover:bg-hover-bg transition-colors"
+                >
+                  <X className="w-5 h-5 text-text-tertiary" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-auto">
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                    {t("buckets.displayName")}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="My S3 Storage"
+                    required
+                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                      {t("buckets.endpoint")}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.endpoint}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, endpoint: e.target.value }))}
+                      placeholder="https://s3.amazonaws.com"
+                      required
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                      {t("buckets.region")}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.region}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, region: e.target.value }))}
+                      placeholder="auto"
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                    {t("buckets.bucketName")}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.bucketName}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, bucketName: e.target.value }))}
+                    placeholder="my-bucket"
+                    required
+                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                      {t("buckets.accessKeyId")}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.accessKeyId}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, accessKeyId: e.target.value }))}
+                      placeholder="AKIA..."
+                      required
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                      {t("buckets.secretAccessKey")}
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.secretAccessKey}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, secretAccessKey: e.target.value }))}
+                      placeholder="••••••••"
+                      required
+                      className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                    {t("buckets.publicUrl")}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.publicUrl}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, publicUrl: e.target.value }))}
+                    placeholder="https://cdn.example.com"
+                    className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
+                  />
+                </div>
+
+                {testResult && (
+                  <div
+                    className={`p-3 rounded-lg flex items-center gap-2 ${
+                      testResult.success
+                        ? "bg-success-green/10 border border-success-green/20 text-success-green"
+                        : "bg-destructive/10 border border-destructive/20 text-destructive"
+                    }`}
+                  >
+                    {testResult.success ? (
+                      <Check className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                    )}
+                    <span className="text-sm">{testResult.message}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={testConnection}
+                    disabled={formLoading}
+                    className="flex-1 px-4 py-2 rounded-lg bg-hover-bg text-text-secondary font-medium hover:bg-surface-elevated transition-colors disabled:opacity-50 text-sm"
+                  >
+                    {formLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {t("buckets.testing")}
+                      </span>
+                    ) : (
+                      t("setup.testConnection")
+                    )}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={formLoading || !testResult?.success}
+                    className="flex-1 px-4 py-2 rounded-lg bg-brand-indigo text-white font-medium hover:bg-accent-violet transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    {t("buckets.saveBucket")}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+      </>
     );
   }
 
@@ -293,8 +459,8 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
       </div>
 
       {showManager && createPortal(
-        <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-subtle overflow-hidden">
+        <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowManager(false)}>
+          <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-subtle overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
               <h2 className="text-lg font-medium text-text-primary">{t("buckets.manageBuckets")}</h2>
               <button
@@ -349,15 +515,13 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
                             <Star className="w-4 h-4 text-text-tertiary hover:text-brand-indigo" />
                           </button>
                         )}
-                        {buckets.length > 1 && (
-                          <button
-                            onClick={() => handleDelete(bucket.id)}
-                            className="p-1.5 rounded hover:bg-destructive/10 transition-colors"
-                            title={t("buckets.delete")}
-                          >
-                            <Trash2 className="w-4 h-4 text-text-tertiary hover:text-destructive" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleDelete(bucket.id)}
+                          className="p-1.5 rounded hover:bg-destructive/10 transition-colors"
+                          title={t("buckets.delete")}
+                        >
+                          <Trash2 className="w-4 h-4 text-text-tertiary hover:text-destructive" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -383,8 +547,8 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
       )}
 
       {showForm && createPortal(
-        <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-subtle overflow-hidden">
+        <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={closeForm}>
+          <div className="w-full max-w-lg bg-bg-panel rounded-xl border border-border-subtle overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
               <div className="flex items-center gap-3">
                 <button
@@ -472,6 +636,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
                     value={formData.accessKeyId}
                     onChange={(e) => setFormData((prev) => ({ ...prev, accessKeyId: e.target.value }))}
                     placeholder={editingId ? t("buckets.leaveEmptyToKeep") : "AKIA..."}
+                    required={!editingId}
                     className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
                   />
                 </div>
@@ -484,6 +649,7 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
                     value={formData.secretAccessKey}
                     onChange={(e) => setFormData((prev) => ({ ...prev, secretAccessKey: e.target.value }))}
                     placeholder={editingId ? t("buckets.leaveEmptyToKeep") : "••••••••"}
+                    required={!editingId}
                     className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-subtle text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-brand-indigo text-sm"
                   />
                 </div>
@@ -544,6 +710,35 @@ export function BucketSelector({ currentBucketId, onBucketChange }: BucketSelect
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {deleteConfirmId && createPortal(
+        <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setDeleteConfirmId(null)}>
+          <div className="w-full max-w-sm bg-bg-panel rounded-xl border border-border-subtle p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <h2 className="text-base font-medium text-text-primary">{t("buckets.deleteBucket")}</h2>
+            </div>
+            <p className="text-sm text-text-tertiary mb-6">{t("buckets.deleteConfirm")}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 px-4 py-2 rounded-lg bg-hover-bg text-text-secondary font-medium hover:bg-surface-elevated transition-colors"
+              >
+                {t("files.cancel")}
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2 rounded-lg bg-destructive text-white font-medium hover:bg-destructive/90 transition-colors"
+              >
+                {t("buckets.delete")}
+              </button>
+            </div>
           </div>
         </div>,
         document.body

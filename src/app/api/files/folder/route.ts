@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { uploadObject, getDefaultBucket } from "@/lib/s3";
+import { uploadObject, getDefaultBucket, getBucketConfig } from "@/lib/s3";
 import { ensureDatabase } from "@/lib/db";
 
 export async function POST(request: Request) {
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "key is required" }, { status: 400 });
     }
 
-    const bucket = await getDefaultBucket();
+    const bucket = bucketId ? await getBucketConfig(bucketId) : await getDefaultBucket();
     if (!bucket) {
       return NextResponse.json({ error: "No bucket configured" }, { status: 400 });
     }
@@ -29,8 +29,8 @@ export async function POST(request: Request) {
     await uploadObject(bucketId || bucket.id, folderKey, new Uint8Array(0), "application/x-directory");
     
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("POST /api/files/folder error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create folder" }, { status: 500 });
   }
 }

@@ -9,10 +9,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
+import { useTranslation } from "@/hooks/use-translation";
 
 export function FilePreview() {
   const { previewItem, setPreviewItem, currentBucketId } = useFileStore();
   const linkMutation = useFileLink();
+  const { t } = useTranslation();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,22 +28,29 @@ export function FilePreview() {
 
     const shouldFetchContent = isCodeFile(fileItem.name) || isMarkdownFile(fileItem.name) || isTextFile(fileItem.name);
 
+    let cancelled = false;
+
     if (shouldFetchContent) {
       setLoading(true);
       linkMutation.mutateAsync({ key: fileItem.key, bucketId: currentBucketId }).then((result) => {
+        if (cancelled) return;
         if (result.url) {
           fetch(result.url)
             .then((res) => res.text())
             .then((text) => {
+              if (cancelled) return;
               setContent(text);
               setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch(() => { if (!cancelled) setLoading(false); });
+        } else {
+          if (!cancelled) setLoading(false);
         }
-      });
+      }).catch(() => { if (!cancelled) setLoading(false); });
     }
 
     return () => {
+      cancelled = true;
       setContent(null);
     };
   }, [fileItem?.key, currentBucketId]);
@@ -110,7 +119,7 @@ export function FilePreview() {
       <button
         onClick={handleClose}
         className="absolute top-4 right-4 z-10 inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
-        title="关闭"
+        title={t("files.close")}
       >
         <X className="h-5 w-5" />
       </button>
@@ -153,7 +162,7 @@ export function FilePreview() {
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-              此文件类型暂不支持预览
+              {t("files.previewNotSupported")}
             </div>
           )}
         </div>
@@ -176,6 +185,7 @@ function ImageLightbox({
   onBackdropClick: (e: React.MouseEvent) => void;
 }) {
   const linkMutation = useFileLink();
+  const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [scale, setScale] = useState(1);
@@ -336,7 +346,7 @@ function ImageLightbox({
         }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'}
-        title="关闭 (Esc)"
+        title={`${t("files.close")} (Esc)`}
       >
         <X className="h-4 w-4" />
       </button>
@@ -355,7 +365,7 @@ function ImageLightbox({
           style={{ color: '#f7f8f8' }}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          title="缩小"
+          title={t("files.zoomOut")}
         >
           <ZoomOut className="h-4 w-4" />
         </button>
@@ -366,7 +376,7 @@ function ImageLightbox({
           style={{ color: '#f7f8f8' }}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          title="放大"
+          title={t("files.zoomIn")}
         >
           <ZoomIn className="h-4 w-4" />
         </button>
@@ -377,7 +387,7 @@ function ImageLightbox({
           style={{ color: '#f7f8f8' }}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          title="旋转"
+          title={t("files.rotate")}
         >
           <RotateCw className="h-4 w-4" />
         </button>
@@ -387,9 +397,9 @@ function ImageLightbox({
           style={{ color: '#d0d6e0' }}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          title="重置"
+          title={t("files.reset")}
         >
-          重置
+          {t("files.reset")}
         </button>
       </div>
 
@@ -447,6 +457,7 @@ function VideoLightbox({
   onBackdropClick: (e: React.MouseEvent) => void;
 }) {
   const linkMutation = useFileLink();
+  const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -473,7 +484,7 @@ function VideoLightbox({
         }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'}
-        title="关闭 (Esc)"
+        title={`${t("files.close")} (Esc)`}
       >
         <X className="h-4 w-4" />
       </button>
@@ -516,7 +527,7 @@ function MediaPreview({ fileKey, type, bucketId }: { fileKey: string; type: "aud
   useEffect(() => {
     linkMutation.mutateAsync({ key: fileKey, bucketId }).then((result) => {
       if (result.url) setUrl(result.url);
-    });
+    }).catch(() => {});
   }, [fileKey, bucketId]);
 
   if (!url) {

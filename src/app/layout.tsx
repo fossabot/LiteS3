@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
+import Script from "next/script";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -9,7 +10,7 @@ import { LanguageProvider } from "@/hooks/use-translation";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "S3 Manager",
+  title: "LiteS3",
   description: "Personal file management system for S3-compatible storage",
 };
 
@@ -23,6 +24,17 @@ const themeScript = `
 })();
 `;
 
+const viewTransitionErrorScript = `
+window.addEventListener('error', function(e) {
+  if (e.message && e.message.indexOf('Transition was aborted') !== -1) return true;
+});
+window.addEventListener('unhandledrejection', function(e) {
+  if (e.reason && e.reason.name === 'InvalidStateError' && e.reason.message && e.reason.message.indexOf('Transition was aborted') !== -1) {
+    e.preventDefault();
+  }
+});
+`;
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -33,9 +45,10 @@ export default async function RootLayout({
   const initialLanguage = languageCookie?.value === "en" ? "en" : "zh";
 
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang={initialLanguage === "en" ? "en" : "zh-CN"} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <Script id="theme-init" strategy="beforeInteractive">{themeScript}</Script>
+        <Script id="vt-error-suppress" strategy="beforeInteractive">{viewTransitionErrorScript}</Script>
       </head>
       <body className={inter.className}>
         <ThemeProvider>

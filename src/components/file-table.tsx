@@ -51,8 +51,17 @@ export function FileTable() {
         setShowPathDropdown(false);
       }
     };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowPathDropdown(false);
+      }
+    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   const handleRefresh = useCallback(async () => {
@@ -236,7 +245,7 @@ export function FileTable() {
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="h-9 w-9 rounded-md border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors flex items-center justify-center disabled:opacity-50"
-            title={t("files.refresh") || "Refresh"}
+            title={t("files.refresh")}
           >
             <RotateCw 
               className="h-4 w-4 transition-transform duration-500 ease-out" 
@@ -361,7 +370,7 @@ export function FileTable() {
         ) : error ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <p className="text-text-primary text-lg">Failed to load</p>
+              <p className="text-text-primary text-lg">{t("common.failedToLoad")}</p>
               <p className="text-text-quaternary text-sm mt-1">{(error as Error).message}</p>
             </div>
           </div>

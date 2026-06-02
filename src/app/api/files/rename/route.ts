@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { copyObject, deleteObject, listObjects, getDefaultBucket } from "@/lib/s3";
+import { copyObject, deleteObject, listAllObjects, getDefaultBucket, getBucketConfig } from "@/lib/s3";
 import { ensureDatabase } from "@/lib/db";
+import { parallelWithLimit } from "@/lib/concurrent";
+
+const MAX_CONCURRENT = 5;
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -19,7 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "sourceKey and destKey are required" }, { status: 400 });
     }
 
-    const bucket = await getDefaultBucket();
+    const bucket = bucketId ? await getBucketConfig(bucketId) : await getDefaultBucket();
     if (!bucket) {
       return NextResponse.json({ error: "No bucket configured" }, { status: 400 });
     }
@@ -27,30 +30,35 @@ export async function POST(request: Request) {
     const targetBucketId = bucketId || bucket.id;
     
     if (sourceKey.endsWith("/")) {
-      const listResult = await listObjects(targetBucketId, sourceKey);
-      const allObjects = listResult.Contents || [];
+      const allObjects = await listAllObjects(targetBucketId, sourceKey);
+      const objectsWithKey = allObjects.filter(obj => obj.Key);
       
-      for (const obj of allObjects) {
-        if (obj.Key) {
-          const relativePath = obj.Key.slice(sourceKey.length);
-          const newKey = destKey + relativePath;
-          await copyObject(targetBucketId, obj.Key, newKey);
-        }
-      }
-      
-      for (const obj of allObjects.reverse()) {
-        if (obj.Key) {
-          await deleteObject(targetBucketId, obj.Key);
-        }
-      }
+      const copyTasks = objectsWithKey.map(obj => ({
+        source: obj.Key!,
+        dest: destKey + obj.Key!.slice(sourceKey.length),
+      }));
+
+      await parallelWithLimit(
+        copyTasks,
+        (task) => copyObject(targetBucketId, task.source, task.dest),
+        MAX_CONCURRENT
+      );
+
+      const deleteKeys = objectsWithKey.map(obj => obj.Key!);
+      deleteKeys.push(sourceKey);
+      await parallelWithLimit(
+        deleteKeys,
+        (key) => deleteObject(targetBucketId, key),
+        MAX_CONCURRENT
+      );
     } else {
       await copyObject(targetBucketId, sourceKey, destKey);
       await deleteObject(targetBucketId, sourceKey);
     }
     
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("POST /api/files/rename error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Rename failed" }, { status: 500 });
   }
 }

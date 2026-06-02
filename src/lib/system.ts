@@ -1,47 +1,57 @@
-import { getDatabase, schema, createDatabase, resetDatabase, setDatabaseInstance, type DatabaseConfig } from "./db";
+import { getDatabase, getSchema, ensureDatabase, type DatabaseConfig, detectDatabaseConfig } from "./db";
 import { eq } from "drizzle-orm";
 
 let isInitialized = false;
-let dbConfig: DatabaseConfig | null = null;
+
+const SETUP_CACHE_TTL = 30_000;
+let setupCompletedCache: { value: boolean; timestamp: number } | null = null;
+
+export function invalidateSetupCache(): void {
+  setupCompletedCache = null;
+}
 
 export async function initializeDatabase(): Promise<boolean> {
   if (isInitialized) return true;
 
-  const configStr = process.env.DATABASE_CONFIG;
-  
-  if (configStr) {
-    try {
-      dbConfig = JSON.parse(configStr);
-      resetDatabase();
-      const db = await createDatabase(dbConfig!);
-      setDatabaseInstance(db, dbConfig!);
-      isInitialized = true;
-      return true;
-    } catch (error) {
-      console.error("Failed to initialize database from env:", error);
-    }
+  try {
+    await ensureDatabase();
+    isInitialized = true;
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize database:", error);
+    return false;
   }
-
-  return false;
 }
 
 export async function isSetupCompleted(): Promise<boolean> {
   try {
+    const now = Date.now();
+    if (setupCompletedCache && now - setupCompletedCache.timestamp < SETUP_CACHE_TTL) {
+      return setupCompletedCache.value;
+    }
+
     if (!isInitialized) {
       const initialized = await initializeDatabase();
-      if (!initialized) return false;
+      if (!initialized) {
+        setupCompletedCache = { value: false, timestamp: now };
+        return false;
+      }
     }
 
     const db = getDatabase();
+    const s = getSchema();
     const result = await db
       .select()
-      .from(schema.systemSettings)
-      .where(eq(schema.systemSettings.key, "setup_completed"))
+      .from(s.systemSettings)
+      .where(eq(s.systemSettings.key, "setup_completed"))
       .limit(1);
 
-    return result.length > 0 && result[0].value === "true";
+    const completed = result.length > 0 && result[0].value === "true";
+    setupCompletedCache = { value: completed, timestamp: now };
+    return completed;
   } catch (error) {
-    return false;
+    setupCompletedCache = { value: true, timestamp: Date.now() };
+    return true;
   }
 }
 
@@ -52,10 +62,11 @@ export async function getSystemSetting(key: string): Promise<string | null> {
     }
 
     const db = getDatabase();
+    const s = getSchema();
     const result = await db
       .select()
-      .from(schema.systemSettings)
-      .where(eq(schema.systemSettings.key, key))
+      .from(s.systemSettings)
+      .where(eq(s.systemSettings.key, key))
       .limit(1);
 
     return result[0]?.value || null;
@@ -70,19 +81,16 @@ export async function setSystemSetting(key: string, value: string): Promise<void
   }
 
   const db = getDatabase();
+  const s = getSchema();
   await db
-    .insert(schema.systemSettings)
+    .insert(s.systemSettings)
     .values({ key, value, updatedAt: new Date() })
     .onConflictDoUpdate({
-      target: schema.systemSettings.key,
+      target: s.systemSettings.key,
       set: { value, updatedAt: new Date() },
     });
 }
 
-export function setDatabaseConfig(config: DatabaseConfig): void {
-  dbConfig = config;
-}
-
-export function getDatabaseConfig(): DatabaseConfig | null {
-  return dbConfig;
+export function getDatabaseConfig(): DatabaseConfig {
+  return detectDatabaseConfig();
 }

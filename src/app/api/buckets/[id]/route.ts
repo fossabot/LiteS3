@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import {
   getBucketConfig,
   updateBucketConfig,
@@ -11,6 +13,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureDatabase();
     const { id } = await params;
@@ -31,12 +38,9 @@ export async function GET(
         isDefault: bucket.isDefault,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("GET /api/buckets/[id] error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to get bucket" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to get bucket" }, { status: 500 });
   }
 }
 
@@ -44,6 +48,11 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureDatabase();
     const { id } = await params;
@@ -82,12 +91,9 @@ export async function PUT(
         isDefault: updated.isDefault,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("PUT /api/buckets/[id] error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update bucket" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update bucket" }, { status: 500 });
   }
 }
 
@@ -95,17 +101,19 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureDatabase();
     const { id } = await params;
     await deleteBucketConfig(id);
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("DELETE /api/buckets/[id] error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete bucket" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete bucket" }, { status: 500 });
   }
 }
 
@@ -113,6 +121,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureDatabase();
     const { id } = await params;
@@ -124,11 +137,8 @@ export async function PATCH(
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("PATCH /api/buckets/[id] error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Operation failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
   }
 }

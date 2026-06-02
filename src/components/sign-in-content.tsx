@@ -11,10 +11,8 @@ export function SignInContent() {
       <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-center px-16 xl:px-24">
         <div className="max-w-lg">
           <div className="flex items-center gap-3 mb-8">
-            <div className="h-12 w-12 rounded-xl bg-brand-indigo flex items-center justify-center">
-              <span className="text-white font-medium text-lg">S3</span>
-            </div>
-            <span className="text-2xl font-medium text-text-primary" style={{ letterSpacing: "-0.704px" }}>S3 Manager</span>
+            <img src="/icon.svg" alt="LiteS3" className="h-10 w-10 rounded-xl" />
+            <span className="text-3xl font-medium text-text-primary" style={{ letterSpacing: "-0.704px" }}>LiteS3</span>
           </div>
           <h1 className="text-4xl xl:text-5xl font-medium text-text-primary leading-tight whitespace-pre-line" style={{ letterSpacing: "-1.056px" }}>
             {t("auth.heroTitle")}
@@ -44,13 +42,11 @@ export function SignInContent() {
           <div className="lg:hidden flex flex-col items-center gap-5 mb-8">
             <div className="relative">
               <div className="absolute -inset-4 bg-brand-indigo/20 rounded-2xl blur-xl" />
-              <div className="relative h-16 w-16 rounded-2xl bg-brand-indigo flex items-center justify-center shadow-lg">
-                <span className="text-white font-medium text-2xl">S3</span>
-              </div>
+              <img src="/icon.svg" alt="LiteS3" className="relative h-16 w-16 rounded-2xl shadow-lg" />
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-medium text-text-primary" style={{ letterSpacing: "-0.704px" }}>
-                S3 Manager
+              <h1 className="text-3xl font-medium text-text-primary" style={{ letterSpacing: "-0.704px" }}>
+                LiteS3
               </h1>
               <p className="text-text-tertiary text-sm mt-2">{t("auth.heroTitleMobileDesc")}</p>
             </div>

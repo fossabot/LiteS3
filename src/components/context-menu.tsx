@@ -8,7 +8,7 @@ import { Pencil, Trash2, Copy, Move, Link, Download, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function ContextMenu() {
-  const { contextMenu, closeContextMenu, setPreviewItem, openRenameDialog, openMoveDialog, openCopyDialog, startDelete } = useFileStore();
+  const { contextMenu, closeContextMenu, setPreviewItem, openRenameDialog, openMoveDialog, openCopyDialog, startDelete, currentBucketId } = useFileStore();
   const linkMutation = useFileLink();
   const { t } = useTranslation();
 
@@ -31,8 +31,15 @@ export function ContextMenu() {
 
   if (!contextMenu) return null;
 
-  const { item, x, y } = contextMenu;
+  const { item, x: rawX, y: rawY } = contextMenu;
   const isFolder = item.type === "folder";
+
+  const menuWidth = 180;
+  const menuHeight = isFolder ? 180 : 280;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const x = rawX + menuWidth > viewportWidth ? Math.max(0, rawX - menuWidth) : rawX;
+  const y = rawY + menuHeight > viewportHeight ? Math.max(0, rawY - menuHeight) : rawY;
 
   const handleDelete = () => {
     closeContextMenu();
@@ -41,16 +48,15 @@ export function ContextMenu() {
 
   const handleCopyLink = async () => {
     closeContextMenu();
-    const result = await linkMutation.mutateAsync({ key: item.key });
+    const result = await linkMutation.mutateAsync({ key: item.key, bucketId: currentBucketId });
     if (result.url) {
       await navigator.clipboard.writeText(result.url);
-      alert(t("files.copyLink"));
     }
   };
 
   const handleDownload = async () => {
     closeContextMenu();
-    const result = await linkMutation.mutateAsync({ key: item.key });
+    const result = await linkMutation.mutateAsync({ key: item.key, bucketId: currentBucketId });
     if (result.url) {
       window.open(result.url, "_blank");
     }

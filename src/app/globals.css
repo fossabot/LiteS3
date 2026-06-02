@@ -372,3 +372,7 @@
     color: var(--text-quaternary);
   }
 }
+
+button:not(:disabled) {
+  cursor: pointer !important;
+}

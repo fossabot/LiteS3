@@ -3,15 +3,9 @@
 import { useState, useEffect } from "react";
 import { Database, User, Check, AlertCircle, Loader2 } from "lucide-react";
 import { ThemeMenu } from "@/components/theme-menu";
-import { NotFound } from "@/components/not-found";
 import { useTranslation } from "@/hooks/use-translation";
 
 type Step = "database" | "admin" | "complete";
-
-interface DatabaseConfig {
-  driver: string;
-  url: string;
-}
 
 interface AdminConfig {
   username: string;
@@ -23,10 +17,7 @@ interface AdminConfig {
 export default function SetupPage() {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>("database");
-  const [dbConfig, setDbConfig] = useState<DatabaseConfig>({
-    driver: "sqlite",
-    url: "file:.data/local.db",
-  });
+  const [databaseType, setDatabaseType] = useState<string>("sqlite-local");
   const [adminConfig, setAdminConfig] = useState<AdminConfig>({
     username: "",
     password: "",
@@ -37,7 +28,6 @@ export default function SetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [connectionTested, setConnectionTested] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
-  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     const checkSetupStatus = async () => {
@@ -45,8 +35,11 @@ export default function SetupPage() {
         const response = await fetch("/api/setup");
         const data = await response.json();
         if (data.initialized) {
-          setNotFound(true);
+          window.location.href = "/auth/signin";
           return;
+        }
+        if (data.databaseType) {
+          setDatabaseType(data.databaseType);
         }
       } catch (e) {
         console.error("Failed to check setup status", e);
@@ -57,24 +50,6 @@ export default function SetupPage() {
     checkSetupStatus();
   }, []);
 
-  useEffect(() => {
-    const loadEnvConfig = async () => {
-      try {
-        const envConfig = process.env.NEXT_PUBLIC_DATABASE_CONFIG;
-        if (envConfig) {
-          const config = JSON.parse(envConfig);
-          setDbConfig({
-            driver: config.driver || "sqlite",
-            url: config.url || "file:.data/local.db",
-          });
-        }
-      } catch (e) {
-        console.error("Failed to load env config", e);
-      }
-    };
-    loadEnvConfig();
-  }, []);
-
   if (checkingStatus) {
     return (
       <div className="min-h-screen bg-bg-marketing flex items-center justify-center">
@@ -83,25 +58,24 @@ export default function SetupPage() {
     );
   }
 
-  if (notFound) {
-    return <NotFound />;
-  }
-
   const testConnection = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch("/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step: "test-connection", config: dbConfig }),
+        body: JSON.stringify({ step: "test-connection" }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setConnectionTested(true);
+        if (data.databaseType) {
+          setDatabaseType(data.databaseType);
+        }
       } else {
         setError(data.error || "Connection failed");
       }
@@ -130,14 +104,13 @@ export default function SetupPage() {
       const response = await fetch("/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          step: "initialize", 
-          config: dbConfig, 
+        body: JSON.stringify({
+          step: "initialize",
           admin: {
             username: adminConfig.username,
             password: adminConfig.password,
             email: adminConfig.email || undefined,
-          }
+          },
         }),
       });
 
@@ -215,7 +188,7 @@ export default function SetupPage() {
 
           {step === "database" && (
             <DatabaseStep
-              config={dbConfig}
+              databaseType={databaseType}
               connectionTested={connectionTested}
               onTest={testConnection}
               onNext={() => setStep("admin")}
@@ -243,20 +216,23 @@ export default function SetupPage() {
 }
 
 function DatabaseStep({
-  config,
+  databaseType,
   connectionTested,
   onTest,
   onNext,
   loading,
 }: {
-  config: DatabaseConfig;
+  databaseType: string;
   connectionTested: boolean;
   onTest: () => void;
   onNext: () => void;
   loading: boolean;
 }) {
   const { t } = useTranslation();
-  
+
+  const typeLabelKey = `setup.type_${databaseType}` as const;
+  const typeLabel = t(typeLabelKey);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 mb-6">
@@ -269,21 +245,15 @@ function DatabaseStep({
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="p-4 rounded-lg bg-hover-bg border border-border-standard">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-text-quaternary">{t("setup.driver")}:</span>
-              <span className="text-text-secondary ml-2">{config.driver.toUpperCase()}</span>
-            </div>
-            <div>
-              <span className="text-text-quaternary">{t("setup.url")}:</span>
-              <span className="text-text-secondary ml-2 font-mono text-xs">{config.url}</span>
-            </div>
+      <div className="px-4 py-3 rounded-lg bg-hover-bg border border-border-standard">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium text-text-primary">{t("setup.currentDatabase")}</div>
+            <div className="text-xs text-text-quaternary mt-0.5">{t("setup.driverFromEnv")}</div>
           </div>
-          <p className="text-xs text-text-quaternary mt-3">
-            {t("setup.configNote")}
-          </p>
+          <div className="px-3 py-1.5 rounded-md bg-brand-indigo/10 text-brand-indigo text-sm font-medium">
+            {typeLabel}
+          </div>
         </div>
       </div>
 
@@ -335,7 +305,7 @@ function AdminStep({
   loading: boolean;
 }) {
   const { t } = useTranslation();
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 mb-6">
@@ -356,6 +326,7 @@ function AdminStep({
             value={config.username}
             onChange={(e) => setConfig((prev) => ({ ...prev, username: e.target.value }))}
             placeholder="admin"
+            required
             className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
           />
         </div>
@@ -376,6 +347,8 @@ function AdminStep({
             value={config.password}
             onChange={(e) => setConfig((prev) => ({ ...prev, password: e.target.value }))}
             placeholder="••••••••"
+            required
+            minLength={8}
             className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
           />
         </div>
@@ -386,6 +359,8 @@ function AdminStep({
             value={config.confirmPassword}
             onChange={(e) => setConfig((prev) => ({ ...prev, confirmPassword: e.target.value }))}
             placeholder="••••••••"
+            required
+            minLength={8}
             className="w-full px-3 py-2 rounded-lg bg-hover-bg border border-border-standard text-text-primary placeholder-text-quaternary focus:outline-none focus:border-brand-indigo"
           />
         </div>
@@ -409,7 +384,7 @@ function AdminStep({
               {t("setup.initializing")}
             </span>
           ) : (
-            t("setup.completeSetup")
+            t("setup.initialize")
           )}
         </button>
       </div>
@@ -419,21 +394,21 @@ function AdminStep({
 
 function CompleteStep({ onComplete }: { onComplete: () => void }) {
   const { t } = useTranslation();
-  
+
   return (
-    <div className="text-center py-8">
-      <div className="w-16 h-16 rounded-full bg-success-green flex items-center justify-center mx-auto mb-4">
-        <Check className="w-8 h-8 text-white" />
+    <div className="space-y-6 text-center">
+      <div className="w-16 h-16 rounded-full bg-success-green/10 flex items-center justify-center mx-auto">
+        <Check className="w-8 h-8 text-success-green" />
       </div>
-      <h2 className="text-xl font-medium text-text-primary mb-2">{t("setup.setupComplete")}</h2>
-      <p className="text-text-tertiary mb-6">
-        {t("setup.ready")}
-      </p>
+      <div>
+        <h2 className="text-lg font-medium text-text-primary">{t("setup.setupComplete")}</h2>
+        <p className="text-sm text-text-tertiary mt-1">{t("setup.setupCompleteDesc")}</p>
+      </div>
       <button
         onClick={onComplete}
-        className="px-6 py-2 rounded-lg bg-brand-indigo text-white font-medium hover:bg-accent-violet transition-colors"
+        className="w-full px-4 py-2 rounded-lg bg-brand-indigo text-white font-medium hover:bg-accent-violet transition-colors"
       >
-        {t("setup.goToSignIn")}
+        {t("setup.goToLogin")}
       </button>
     </div>
   );

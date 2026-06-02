@@ -4,10 +4,12 @@ import { useCallback, useState } from "react";
 import { useUpload } from "@/hooks/use-upload";
 import { UploadCloud, X, Loader2 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
+import { useTranslation } from "@/hooks/use-translation";
 
 export function DropZone() {
   const { activeUploads, uploadFiles, removeUpload } = useUpload();
   const [isDragging, setIsDragging] = useState(false);
+  const { t } = useTranslation();
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -48,7 +50,7 @@ export function DropZone() {
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-2 text-brand-indigo">
               <UploadCloud className="h-16 w-16" />
-              <p className="text-lg font-medium">释放以上传文件</p>
+              <p className="text-lg font-medium">{t("files.dropToUpload")}</p>
             </div>
           </div>
         )}
@@ -57,7 +59,7 @@ export function DropZone() {
       {activeUploads.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border border-border-subtle bg-surface-elevated shadow-lg">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
-            <span className="text-sm font-medium text-text-primary">上传中</span>
+            <span className="text-sm font-medium text-text-primary">{t("files.uploading")}</span>
             <span className="text-xs text-text-tertiary">
               {activeUploads.filter((u) => u.status === "done").length}/{activeUploads.length}
             </span>

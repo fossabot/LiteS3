@@ -7,6 +7,7 @@ import { FileIcon, FolderIcon } from "./file-icon";
 import { Thumbnail } from "./thumbnail";
 import { isThumbnailable } from "@/hooks/use-thumbnail";
 import { Check } from "lucide-react";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface FileListItemProps {
   item: FileOrFolder;
@@ -14,6 +15,7 @@ interface FileListItemProps {
 
 export function FileListItem({ item }: FileListItemProps) {
   const { navigateToFolder, setPreviewItem, selectedItems, toggleSelect, openContextMenu, currentBucketId } = useFileStore();
+  const { language } = useTranslation();
   const isSelected = selectedItems.has(item.key);
   const isFolder = item.type === "folder";
   const hasThumbnail = !isFolder && isThumbnailable(item.name);
@@ -100,7 +102,7 @@ export function FileListItem({ item }: FileListItemProps) {
 
       {!isFolder && "lastModified" in item && (
         <span className="text-xs text-text-tertiary w-36 text-right shrink-0">
-          {formatDate(item.lastModified)}
+          {formatDate(item.lastModified, language === "en" ? "en-US" : "zh-CN")}
         </span>
       )}
     </div>

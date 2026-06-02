@@ -45,8 +45,8 @@ export function NewFolderDialog({ open, onOpenChange }: NewFolderDialogProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="w-full max-w-sm bg-bg-panel rounded-xl border border-border-subtle p-6">
+    <div className="fixed inset-0 bg-overlay-primary backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={handleClose}>
+      <div className="w-full max-w-sm bg-bg-panel rounded-xl border border-border-subtle p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-brand-indigo/10 flex items-center justify-center">

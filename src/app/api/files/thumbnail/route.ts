@@ -6,11 +6,20 @@ import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { ensureDatabase } from "@/lib/db";
 import sharp from "sharp";
 
-const imageCache = new Map<string, { data: ArrayBuffer; contentType: string; expiresAt: number }>();
+interface CacheEntry {
+  data: ArrayBuffer;
+  contentType: string;
+  expiresAt: number;
+  size: number;
+}
+
+const imageCache = new Map<string, CacheEntry>();
 
 const THUMBNAIL_SIZE = 200;
 const CACHE_TTL = 50 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 500;
+const MAX_CACHE_MEMORY = 100 * 1024 * 1024;
+let totalCacheMemory = 0;
 
 const SUPPORTED_IMAGE_TYPES = [
   "image/jpeg",
@@ -71,6 +80,43 @@ async function generatePlaceholder(type: "video" | "unsupported", size: number):
     .toBuffer();
 }
 
+function evictCache(reserveBytes: number = 0) {
+  const targetMemory = MAX_CACHE_MEMORY - reserveBytes;
+  while ((imageCache.size >= MAX_CACHE_ENTRIES || totalCacheMemory >= targetMemory) && imageCache.size > 0) {
+    const oldest = imageCache.keys().next().value;
+    if (oldest) {
+      const entry = imageCache.get(oldest);
+      if (entry) {
+        totalCacheMemory -= entry.size;
+      }
+      imageCache.delete(oldest);
+    }
+  }
+}
+
+function recalculateCacheMemory() {
+  let total = 0;
+  for (const entry of imageCache.values()) {
+    total += entry.size;
+  }
+  totalCacheMemory = total;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+  for (const [key, entry] of imageCache) {
+    if (entry.expiresAt <= now) {
+      totalCacheMemory -= entry.size;
+      imageCache.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) {
+    recalculateCacheMemory();
+  }
+}, 60_000);
+
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -127,6 +173,11 @@ export async function GET(request: Request) {
       });
     }
 
+    if (cached) {
+      totalCacheMemory -= cached.size;
+      imageCache.delete(cacheKey);
+    }
+
     const client = createS3Client(bucket);
     const command = new GetObjectCommand({
       Bucket: bucket.bucketName,
@@ -151,11 +202,9 @@ export async function GET(request: Request) {
       const contentType = "image/webp";
       const data = resized.buffer.slice(resized.byteOffset, resized.byteOffset + resized.byteLength) as ArrayBuffer;
 
-      if (imageCache.size >= MAX_CACHE_ENTRIES) {
-        const oldest = imageCache.keys().next().value;
-        if (oldest) imageCache.delete(oldest);
-      }
-      imageCache.set(cacheKey, { data, contentType, expiresAt: Date.now() + CACHE_TTL });
+      evictCache(data.byteLength);
+      imageCache.set(cacheKey, { data, contentType, expiresAt: Date.now() + CACHE_TTL, size: data.byteLength });
+      totalCacheMemory += data.byteLength;
 
       return new Response(data, {
         headers: {
@@ -173,8 +222,8 @@ export async function GET(request: Request) {
         },
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GET /api/files/thumbnail error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to generate thumbnail" }, { status: 500 });
   }
 }

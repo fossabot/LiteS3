@@ -1,27 +1,56 @@
-import { drizzle } from "drizzle-orm/libsql";
-import { createClient, type Client } from "@libsql/client";
-import * as schema from "./schema";
+import { drizzle as drizzleLibsql } from "drizzle-orm/libsql";
+import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
+import { createClient as createLibsqlClient, type Client as LibsqlClient } from "@libsql/client";
+import { sql } from "drizzle-orm";
+import { setSchemaDriver } from "./schema";
+import * as sqliteSchema from "./schema-sqlite";
+import * as pgSchema from "./schema-pg";
 
-export type DatabaseDriver = "d1" | "sqlite" | "postgresql";
+export type DatabaseDriver = "sqlite" | "postgresql";
+export type DatabaseType = "sqlite-local" | "sqlite-turso" | "postgresql";
 
 export interface DatabaseConfig {
   driver: DatabaseDriver;
-  url?: string;
+  type: DatabaseType;
+  url: string;
   authToken?: string;
-  host?: string;
-  port?: number;
-  database?: string;
-  username?: string;
-  password?: string;
-  ssl?: boolean;
 }
 
-let dbInstance: ReturnType<typeof createDrizzleDb> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let dbInstance: any = null;
 let currentConfig: DatabaseConfig | null = null;
 let initPromise: Promise<void> | null = null;
 
-async function createTables(client: Client) {
-  const createUsersTable = `
+export function detectDatabaseConfig(): DatabaseConfig {
+  const url = process.env.DATABASE_URL;
+
+  if (url && (url.startsWith("postgres://") || url.startsWith("postgresql://"))) {
+    return {
+      driver: "postgresql",
+      type: "postgresql",
+      url,
+    };
+  }
+
+  if (url && url.startsWith("libsql://")) {
+    return {
+      driver: "sqlite",
+      type: "sqlite-turso",
+      url,
+      authToken: process.env.DATABASE_AUTH_TOKEN,
+    };
+  }
+
+  return {
+    driver: "sqlite",
+    type: "sqlite-local",
+    url: url || "file:.data/local.db",
+    authToken: process.env.DATABASE_AUTH_TOKEN,
+  };
+}
+
+async function createSqliteTables(client: LibsqlClient) {
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
@@ -31,9 +60,9 @@ async function createTables(client: Client) {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
-  `;
+  `);
 
-  const createBucketsTable = `
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS buckets (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
@@ -47,47 +76,95 @@ async function createTables(client: Client) {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
-  `;
+  `);
 
-  const createSystemSettingsTable = `
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS system_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     )
-  `;
-
-  await client.execute(createUsersTable);
-  await client.execute(createBucketsTable);
-  await client.execute(createSystemSettingsTable);
+  `);
 }
 
-function createDrizzleDb(client: Client) {
-  return drizzle(client, { schema });
+async function createPgTables(db: ReturnType<typeof drizzlePg>) {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      email TEXT UNIQUE,
+      role TEXT NOT NULL DEFAULT 'user',
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS buckets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      endpoint TEXT NOT NULL,
+      region TEXT NOT NULL DEFAULT 'auto',
+      access_key_id TEXT NOT NULL,
+      secret_access_key TEXT NOT NULL,
+      bucket_name TEXT NOT NULL,
+      public_url TEXT,
+      is_default BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
-export async function createDatabase(config: DatabaseConfig) {
-  const url = config.url || "file:local.db";
-  
-  const client = createClient({
-    url,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function createDatabase(config?: DatabaseConfig): Promise<any> {
+  const effectiveConfig = config || detectDatabaseConfig();
+  setSchemaDriver(effectiveConfig.driver);
+
+  if (effectiveConfig.driver === "postgresql") {
+    return createPostgresDatabase(effectiveConfig);
+  }
+  return createSqliteDatabase(effectiveConfig);
+}
+
+async function createSqliteDatabase(config: DatabaseConfig) {
+  const client = createLibsqlClient({
+    url: config.url,
     authToken: config.authToken,
   });
 
-  await createTables(client);
-  
-  return createDrizzleDb(client);
+  await createSqliteTables(client);
+  return drizzleLibsql(client, { schema: sqliteSchema });
 }
 
-export function getDatabase(config?: DatabaseConfig) {
-  if (config && (!currentConfig || JSON.stringify(currentConfig) !== JSON.stringify(config))) {
-    throw new Error("Database not initialized. Call createDatabase first (async).");
-  }
-  
+async function createPostgresDatabase(config: DatabaseConfig) {
+  const { default: postgres } = await import("postgres");
+
+  const client = postgres(config.url, {
+    ssl: "require",
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 10,
+  });
+
+  const db = drizzlePg(client, { schema: pgSchema });
+  await createPgTables(db);
+  return db;
+}
+
+export function getDatabase() {
   if (!dbInstance) {
-    throw new Error("Database not initialized. Call createDatabase first or provide config.");
+    throw new Error("Database not initialized. Call ensureDatabase() first.");
   }
-  
   return dbInstance;
 }
 
@@ -97,9 +174,14 @@ export function resetDatabase() {
   initPromise = null;
 }
 
-export function setDatabaseInstance(db: ReturnType<typeof createDrizzleDb>, config: DatabaseConfig) {
+export function setDatabaseInstance(db: ReturnType<typeof drizzleLibsql> | ReturnType<typeof drizzlePg>, config: DatabaseConfig) {
   dbInstance = db;
   currentConfig = config;
+  setSchemaDriver(config.driver);
+}
+
+export function getCurrentConfig(): DatabaseConfig | null {
+  return currentConfig;
 }
 
 export async function ensureDatabase(): Promise<void> {
@@ -111,12 +193,7 @@ export async function ensureDatabase(): Promise<void> {
   }
 
   initPromise = (async () => {
-    const configStr = process.env.DATABASE_CONFIG;
-    if (!configStr) {
-      throw new Error("DATABASE_CONFIG not set in environment");
-    }
-
-    const config = JSON.parse(configStr);
+    const config = detectDatabaseConfig();
     const db = await createDatabase(config);
     setDatabaseInstance(db, config);
   })();
@@ -124,4 +201,4 @@ export async function ensureDatabase(): Promise<void> {
   await initPromise;
 }
 
-export { schema };
+export { sqliteSchema, pgSchema };

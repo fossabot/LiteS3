@@ -14,9 +14,9 @@ export function formatBytes(bytes: number, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
-export function formatDate(date: Date | string) {
+export function formatDate(date: Date | string, locale: string = "zh-CN") {
   const d = new Date(date);
-  return d.toLocaleDateString("zh-CN", {
+  return d.toLocaleDateString(locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -70,4 +70,20 @@ export function isTextFile(key: string) {
   return [
     "txt", "log", "csv", "tsv", "ini", "cfg", "conf",
   ].includes(ext);
+}
+
+const CONNECTION_ERROR_MAP: Record<string, string> = {
+  BUCKET_NAME_REQUIRED: "buckets.errorBucketNameRequired",
+  ENDPOINT_REQUIRED: "buckets.errorEndpointRequired",
+  ACCESS_KEY_REQUIRED: "buckets.errorAccessKeyRequired",
+  SECRET_KEY_REQUIRED: "buckets.errorSecretKeyRequired",
+  ENDPOINT_UNREACHABLE: "buckets.errorEndpointUnreachable",
+  INVALID_CREDENTIALS: "buckets.errorInvalidCredentials",
+  BUCKET_NOT_FOUND: "buckets.errorBucketNotFound",
+  NETWORK_ERROR: "buckets.errorNetwork",
+  CONNECTION_FAILED: "buckets.errorConnectionFailed",
+};
+
+export function mapConnectionError(code: string, t: (key: string) => string): string {
+  return t(CONNECTION_ERROR_MAP[code] || "buckets.connectionFailed");
 }

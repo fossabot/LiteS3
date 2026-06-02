@@ -3,11 +3,19 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { SignInContent } from "@/components/sign-in-content";
 import { ThemeMenu } from "@/components/theme-menu";
+import { isSetupCompleted } from "@/lib/system";
+import { NeedsSetup } from "@/components/needs-setup";
 
 export default async function SignInPage() {
+  const setupCompleted = await isSetupCompleted();
+
   const session = await getServerSession(authOptions);
   if (session) {
     redirect("/");
+  }
+
+  if (!setupCompleted) {
+    return <NeedsSetup />;
   }
 
   return (

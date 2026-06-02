@@ -9,7 +9,8 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { getDatabase, schema, type Bucket } from "./db";
+import { getDatabase, getSchema, type Bucket } from "./db";
+import { encrypt, decrypt, isEncrypted } from "./encryption";
 import { eq } from "drizzle-orm";
 
 export interface BucketConfig {
@@ -24,13 +25,41 @@ export interface BucketConfig {
   isDefault: boolean;
 }
 
-const clientCache = new Map<string, S3Client>();
+const MAX_CACHE_SIZE = 50;
+const clientCache = new Map<string, { client: S3Client; lastAccess: number }>();
+
+function evictOldestClient() {
+  if (clientCache.size <= MAX_CACHE_SIZE) return;
+  let oldest: string | null = null;
+  let oldestTime = Infinity;
+  for (const [key, value] of clientCache) {
+    if (value.lastAccess < oldestTime) {
+      oldestTime = value.lastAccess;
+      oldest = key;
+    }
+  }
+  if (oldest) clientCache.delete(oldest);
+}
+
+function decryptBucketConfig(row: Record<string, unknown>): BucketConfig {
+  return {
+    ...row,
+    accessKeyId: typeof row.accessKeyId === "string" && isEncrypted(row.accessKeyId)
+      ? decrypt(row.accessKeyId)
+      : (row.accessKeyId as string),
+    secretAccessKey: typeof row.secretAccessKey === "string" && isEncrypted(row.secretAccessKey)
+      ? decrypt(row.secretAccessKey)
+      : (row.secretAccessKey as string),
+  } as BucketConfig;
+}
 
 export function createS3Client(config: BucketConfig): S3Client {
   const cacheKey = config.id;
+  const cached = clientCache.get(cacheKey);
   
-  if (clientCache.has(cacheKey)) {
-    return clientCache.get(cacheKey)!;
+  if (cached) {
+    cached.lastAccess = Date.now();
+    return cached.client;
   }
 
   const client = new S3Client({
@@ -43,7 +72,8 @@ export function createS3Client(config: BucketConfig): S3Client {
     forcePathStyle: !config.endpoint.includes("amazonaws.com"),
   });
 
-  clientCache.set(cacheKey, client);
+  evictOldestClient();
+  clientCache.set(cacheKey, { client, lastAccess: Date.now() });
   return client;
 }
 
@@ -57,48 +87,53 @@ export function clearClientCache(bucketId?: string) {
 
 export async function getBucketConfig(bucketId: string): Promise<BucketConfig | null> {
   const db = getDatabase();
+  const s = getSchema();
   const result = await db
     .select()
-    .from(schema.buckets)
-    .where(eq(schema.buckets.id, bucketId))
+    .from(s.buckets)
+    .where(eq(s.buckets.id, bucketId))
     .limit(1);
   
-  return result[0] as BucketConfig | null;
+  if (result.length === 0) return null;
+  return decryptBucketConfig(result[0]);
 }
 
 export async function getDefaultBucket(): Promise<BucketConfig | null> {
   const db = getDatabase();
+  const s = getSchema();
   const result = await db
     .select()
-    .from(schema.buckets)
-    .where(eq(schema.buckets.isDefault, true))
+    .from(s.buckets)
+    .where(eq(s.buckets.isDefault, true))
     .limit(1);
   
   if (result.length > 0) {
-    return result[0] as BucketConfig;
+    return decryptBucketConfig(result[0]);
   }
   
-  const allBuckets = await db.select().from(schema.buckets).limit(1);
-  return allBuckets[0] as BucketConfig | null;
+  const allBuckets = await db.select().from(s.buckets).limit(1);
+  if (allBuckets.length === 0) return null;
+  return decryptBucketConfig(allBuckets[0]);
 }
 
 export async function listAllBuckets(): Promise<BucketConfig[]> {
   const db = getDatabase();
-  const result = await db.select().from(schema.buckets);
-  return result as BucketConfig[];
+  const result = await db.select().from(getSchema().buckets);
+  return result.map((row: Record<string, unknown>) => decryptBucketConfig(row));
 }
 
 export async function createBucketConfig(data: Omit<BucketConfig, "id" | "createdAt" | "updatedAt">): Promise<BucketConfig> {
   const db = getDatabase();
+  const s = getSchema();
   const id = crypto.randomUUID();
   
-  await db.insert(schema.buckets).values({
+  await db.insert(s.buckets).values({
     id,
     name: data.name,
     endpoint: data.endpoint,
     region: data.region || "auto",
-    accessKeyId: data.accessKeyId,
-    secretAccessKey: data.secretAccessKey,
+    accessKeyId: encrypt(data.accessKeyId),
+    secretAccessKey: encrypt(data.secretAccessKey),
     bucketName: data.bucketName,
     publicUrl: data.publicUrl || null,
     isDefault: data.isDefault || false,
@@ -111,14 +146,20 @@ export async function createBucketConfig(data: Omit<BucketConfig, "id" | "create
 
 export async function updateBucketConfig(id: string, data: Partial<Omit<BucketConfig, "id" | "createdAt" | "updatedAt">>): Promise<BucketConfig | null> {
   const db = getDatabase();
+  const s = getSchema();
+  
+  const encryptedData: Record<string, unknown> = { ...data, updatedAt: new Date() };
+  if (data.accessKeyId) {
+    encryptedData.accessKeyId = encrypt(data.accessKeyId);
+  }
+  if (data.secretAccessKey) {
+    encryptedData.secretAccessKey = encrypt(data.secretAccessKey);
+  }
   
   await db
-    .update(schema.buckets)
-    .set({
-      ...data,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.buckets.id, id));
+    .update(s.buckets)
+    .set(encryptedData)
+    .where(eq(s.buckets.id, id));
 
   clearClientCache(id);
   return getBucketConfig(id);
@@ -126,24 +167,41 @@ export async function updateBucketConfig(id: string, data: Partial<Omit<BucketCo
 
 export async function deleteBucketConfig(id: string): Promise<boolean> {
   const db = getDatabase();
+  const s = getSchema();
   
-  await db.delete(schema.buckets).where(eq(schema.buckets.id, id));
+  const bucket = await getBucketConfig(id);
+  await db.delete(s.buckets).where(eq(s.buckets.id, id));
   clearClientCache(id);
+  
+  if (bucket?.isDefault) {
+    const remaining = await db
+      .select()
+      .from(s.buckets)
+      .limit(1);
+    if (remaining.length > 0) {
+      await db
+        .update(s.buckets)
+        .set({ isDefault: true, updatedAt: new Date() })
+        .where(eq(s.buckets.id, remaining[0].id));
+    }
+  }
+  
   return true;
 }
 
 export async function setDefaultBucket(id: string): Promise<void> {
   const db = getDatabase();
+  const s = getSchema();
   
   await db
-    .update(schema.buckets)
+    .update(s.buckets)
     .set({ isDefault: false, updatedAt: new Date() })
-    .where(eq(schema.buckets.isDefault, true));
+    .where(eq(s.buckets.isDefault, true));
 
   await db
-    .update(schema.buckets)
+    .update(s.buckets)
     .set({ isDefault: true, updatedAt: new Date() })
-    .where(eq(schema.buckets.id, id));
+    .where(eq(s.buckets.id, id));
 }
 
 export async function listObjects(bucketId: string, prefix: string = "") {
@@ -161,6 +219,33 @@ export async function listObjects(bucketId: string, prefix: string = "") {
   });
   
   return client.send(command);
+}
+
+export async function listAllObjects(bucketId: string, prefix: string) {
+  const config = await getBucketConfig(bucketId);
+  if (!config) throw new Error("Bucket not found");
+  
+  const client = createS3Client(config);
+  const normalizedPrefix = prefix.endsWith("/") ? prefix : prefix + "/";
+  const allObjects: { Key?: string; Size?: number; LastModified?: Date }[] = [];
+  let continuationToken: string | undefined = undefined;
+  
+  do {
+    const command: ListObjectsV2Command = new ListObjectsV2Command({
+      Bucket: config.bucketName,
+      Prefix: normalizedPrefix,
+      MaxKeys: 1000,
+      ContinuationToken: continuationToken,
+    });
+    
+    const result = await client.send(command);
+    if (result.Contents) {
+      allObjects.push(...result.Contents);
+    }
+    continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+  } while (continuationToken);
+  
+  return allObjects;
 }
 
 export async function deleteObject(bucketId: string, key: string) {
@@ -187,7 +272,7 @@ export async function deleteFolder(bucketId: string, prefix: string) {
   let totalDeleted = 0;
   
   do {
-    const listCommand = new ListObjectsV2Command({
+    const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
       Bucket: config.bucketName,
       Prefix: normalizedPrefix,
       MaxKeys: 1000,
@@ -296,10 +381,25 @@ export async function testBucketConnection(config: Omit<BucketConfig, "id" | "is
     await client.send(command);
     return { success: true };
   } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Connection failed" 
-    };
+    const message = error instanceof Error ? error.message : "Connection failed";
+    
+    if (message.includes("No value provided for input HTTP label: Bucket") || message.includes("Bucket name is required")) {
+      return { success: false, error: "BUCKET_NAME_REQUIRED" };
+    }
+    if (message.includes("Could not resolve") || message.includes("ENOTFOUND") || message.includes("getaddrinfo")) {
+      return { success: false, error: "ENDPOINT_UNREACHABLE" };
+    }
+    if (message.includes("InvalidAccessKeyId") || message.includes("SignatureDoesNotMatch") || message.includes("access denied") || message.includes("Access Denied")) {
+      return { success: false, error: "INVALID_CREDENTIALS" };
+    }
+    if (message.includes("NoSuchBucket")) {
+      return { success: false, error: "BUCKET_NOT_FOUND" };
+    }
+    if (message.includes("NetworkingError") || message.includes("ECONNREFUSED") || message.includes("ETIMEDOUT")) {
+      return { success: false, error: "NETWORK_ERROR" };
+    }
+    
+    return { success: false, error: "CONNECTION_FAILED" };
   }
 }
 

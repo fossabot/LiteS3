@@ -16,10 +16,8 @@ export function Navbar() {
     <header className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 border-b border-border-subtle bg-bg-panel/95 backdrop-blur supports-backdrop-filter:bg-bg-panel/60">
       <div className="flex items-center gap-3 lg:flex-1">
         <Link href="/" className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-lg bg-brand-indigo flex items-center justify-center">
-            <span className="text-white font-medium text-sm">S3</span>
-          </div>
-          <h1 className="text-sm font-medium text-text-primary hidden sm:block" style={{ letterSpacing: "-0.13px" }}>S3 Manager</h1>
+          <img src="/icon.svg" alt="LiteS3" className="h-7 w-7 rounded-lg" />
+          <h1 className="text-base font-medium text-text-primary hidden sm:block" style={{ letterSpacing: "-0.13px" }}>LiteS3</h1>
         </Link>
         <BucketSelector currentBucketId={currentBucketId ?? undefined} onBucketChange={setCurrentBucketId} />
       </div>

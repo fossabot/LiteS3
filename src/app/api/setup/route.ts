@@ -1,39 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { createDatabase, schema, setDatabaseInstance, getDatabase, ensureDatabase, type DatabaseConfig } from "@/lib/db";
+import { createDatabase, getSchema, setDatabaseInstance, getDatabase, ensureDatabase, detectDatabaseConfig, type DatabaseConfig } from "@/lib/db";
+import { hashPassword } from "@/lib/password";
+import { invalidateSetupCache } from "@/lib/system";
 
-let initializationCheckCache: { checked: boolean; initialized: boolean } | null = null;
+let initializationCheckCache: { checked: boolean; initialized: boolean; timestamp: number } | null = null;
+const INIT_CACHE_TTL = 30_000;
+
+let isInitializing = false;
+
+const testConnectionAttempts = new Map<string, { count: number; firstAttempt: number }>();
+const TEST_CONN_MAX_ATTEMPTS = 5;
+const TEST_CONN_WINDOW = 60_000;
+
+function invalidateInitializationCache(): void {
+  initializationCheckCache = null;
+}
 
 async function checkIfInitialized(): Promise<boolean> {
-  if (initializationCheckCache?.checked) {
+  const now = Date.now();
+  if (initializationCheckCache?.checked && now - initializationCheckCache.timestamp < INIT_CACHE_TTL) {
     return initializationCheckCache.initialized;
   }
 
   try {
     await ensureDatabase();
     const db = getDatabase();
+    const s = getSchema();
 
     const setupCompleted = await db
       .select()
-      .from(schema.systemSettings)
-      .where(eq(schema.systemSettings.key, "setup_completed"));
+      .from(s.systemSettings)
+      .where(eq(s.systemSettings.key, "setup_completed"));
 
     const isInitialized = setupCompleted.length > 0 && setupCompleted[0].value === "true";
-    
-    initializationCheckCache = { checked: true, initialized: isInitialized };
-    
+
+    initializationCheckCache = { checked: true, initialized: isInitialized, timestamp: now };
+
     return isInitialized;
   } catch {
+    initializationCheckCache = { checked: true, initialized: true, timestamp: now };
+    return true;
+  }
+}
+
+function checkTestConnectionRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = testConnectionAttempts.get(ip);
+
+  if (!record || now - record.firstAttempt > TEST_CONN_WINDOW) {
+    testConnectionAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+
+  if (record.count >= TEST_CONN_MAX_ATTEMPTS) {
     return false;
   }
+
+  record.count++;
+  return true;
 }
 
 export async function GET() {
   try {
     const isInitialized = await checkIfInitialized();
-    return NextResponse.json({ initialized: isInitialized });
-  } catch (error) {
-    return NextResponse.json({ initialized: false });
+    const response: { initialized: boolean; databaseType?: string } = {
+      initialized: isInitialized,
+    };
+    if (!isInitialized) {
+      const config = detectDatabaseConfig();
+      response.databaseType = config.type;
+    }
+    return NextResponse.json(response);
+  } catch (error: unknown) {
+    console.error("GET /api/setup error:", error);
+    return NextResponse.json({ initialized: true });
   }
 }
 
@@ -49,121 +90,126 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { step, config, admin } = body;
+    const { step, admin } = body;
 
-    const envConfigStr = process.env.DATABASE_CONFIG;
-    let effectiveConfig: DatabaseConfig;
-    
-    if (envConfigStr) {
-      try {
-        effectiveConfig = JSON.parse(envConfigStr);
-      } catch {
-        return NextResponse.json(
-          { error: "Invalid database configuration in environment" },
-          { status: 500 }
-        );
-      }
-    } else if (config) {
-      effectiveConfig = config;
-    } else {
-      return NextResponse.json(
-        { error: "No database configuration provided" },
-        { status: 400 }
-      );
-    }
+    const config = detectDatabaseConfig();
 
     if (step === "test-connection") {
-      return await testConnection(effectiveConfig);
+      const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+        || request.headers.get("x-real-ip")
+        || "unknown";
+
+      if (!checkTestConnectionRateLimit(clientIp)) {
+        return NextResponse.json(
+          { error: "Too many connection tests. Please wait and try again." },
+          { status: 429 }
+        );
+      }
+
+      return await testConnection(config);
     }
 
     if (step === "initialize") {
-      return await initializeSystem(effectiveConfig, admin);
+      if (!admin || !admin.username || !admin.password) {
+        return NextResponse.json({ error: "Admin credentials required" }, { status: 400 });
+      }
+      if (admin.password.length < 8) {
+        return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+      }
+      if (admin.username.length < 2) {
+        return NextResponse.json({ error: "Username must be at least 2 characters" }, { status: 400 });
+      }
+      return await initializeSystem(config, admin);
     }
 
     return NextResponse.json({ error: "Invalid step" }, { status: 400 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Setup error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Setup failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Setup failed" }, { status: 500 });
   }
 }
 
 async function testConnection(config: DatabaseConfig) {
   try {
     const db = await createDatabase(config);
-    const now = new Date();
-    
-    await db.insert(schema.systemSettings).values({
-      key: "connection_test",
-      value: Date.now().toString(),
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: schema.systemSettings.key,
-      set: { value: Date.now().toString(), updatedAt: now },
-    });
+    const s = getSchema();
+
+    await db.select().from(s.systemSettings).limit(1);
 
     return NextResponse.json({ success: true, message: "Connection successful" });
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Connection failed" },
-      { status: 400 }
-    );
+  } catch (error: unknown) {
+    console.error("Connection test error:", error);
+    return NextResponse.json({ success: false, error: "Connection failed" }, { status: 400 });
   }
 }
 
 async function initializeSystem(config: DatabaseConfig, admin: { username: string; password: string; email?: string }) {
+  if (isInitializing) {
+    return NextResponse.json({ error: "Initialization already in progress" }, { status: 409 });
+  }
+
+  isInitializing = true;
+
   try {
     const db = await createDatabase(config);
     setDatabaseInstance(db, config);
 
+    const s = getSchema();
+
+    const existing = await db
+      .select()
+      .from(s.systemSettings)
+      .where(eq(s.systemSettings.key, "setup_completed"))
+      .limit(1);
+
+    if (existing.length > 0 && existing[0].value === "true") {
+      console.warn("[SECURITY] Race condition detected: system already initialized at DB level");
+      return NextResponse.json({ error: "System already initialized" }, { status: 403 });
+    }
+
     const adminId = crypto.randomUUID();
-    const passwordHash = await hashPassword(admin.password);
+    const passwordHash = hashPassword(admin.password);
     const now = new Date();
 
-    await db.insert(schema.users).values({
-      id: adminId,
-      username: admin.username,
-      passwordHash,
-      email: admin.email || null,
-      role: "admin",
-      createdAt: now,
-      updatedAt: now,
+    await (db as any).transaction(async (tx: any) => {
+      await tx.insert(s.users).values({
+        id: adminId,
+        username: admin.username,
+        passwordHash,
+        email: admin.email || null,
+        role: "admin",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await tx.insert(s.systemSettings).values({
+        key: "setup_completed",
+        value: "true",
+        updatedAt: now,
+      });
+
+      await tx.insert(s.systemSettings).values({
+        key: "database_driver",
+        value: config.driver,
+        updatedAt: now,
+      });
     });
 
-    await db.insert(schema.systemSettings).values({
-      key: "setup_completed",
-      value: "true",
-      updatedAt: now,
-    });
+    initializationCheckCache = { checked: true, initialized: true, timestamp: Date.now() };
+    invalidateSetupCache();
+    invalidateInitializationCache();
 
-    await db.insert(schema.systemSettings).values({
-      key: "database_config",
-      value: JSON.stringify(config),
-      updatedAt: now,
-    });
+    console.log("[SECURITY] System initialized successfully with driver:", config.driver);
 
-    initializationCheckCache = { checked: true, initialized: true };
-
-    console.log("[SECURITY] System initialized successfully");
-
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: "System initialized successfully",
     });
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Initialization failed" },
-      { status: 400 }
-    );
+  } catch (error: unknown) {
+    console.error("Initialization error:", error);
+    invalidateInitializationCache();
+    return NextResponse.json({ success: false, error: "Initialization failed" }, { status: 400 });
+  } finally {
+    isInitializing = false;
   }
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }

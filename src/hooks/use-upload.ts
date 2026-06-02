@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useFileStore } from "@/store/file-store";
 import { useQueryClient } from "@tanstack/react-query";
+import { parallelWithLimit } from "@/lib/concurrent";
 
 interface UploadItem {
   id: string;
@@ -13,6 +14,9 @@ interface UploadItem {
   error?: string;
 }
 
+const MAX_CONCURRENT_UPLOADS = 3;
+const DONE_ITEM_TTL = 30_000;
+
 let uploadsState: UploadItem[] = [];
 const listeners: Set<() => void> = new Set();
 
@@ -20,6 +24,21 @@ function setUploads(newUploads: UploadItem[] | ((prev: UploadItem[]) => UploadIt
   uploadsState = typeof newUploads === "function" ? newUploads(uploadsState) : newUploads;
   listeners.forEach((listener) => listener());
 }
+
+setInterval(() => {
+  const now = Date.now();
+  const before = uploadsState.length;
+  uploadsState = uploadsState.filter((u) => {
+    if (u.status === "done" || u.status === "error") {
+      const age = now - parseInt(u.id.split("-")[0], 10);
+      if (age > DONE_ITEM_TTL) return false;
+    }
+    return true;
+  });
+  if (uploadsState.length !== before) {
+    listeners.forEach((listener) => listener());
+  }
+}, 10_000);
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -30,15 +49,13 @@ export function useUpload() {
   const queryClient = useQueryClient();
   const [, forceUpdate] = useState({});
 
-  const subscribe = useCallback(() => {
+  useEffect(() => {
     const listener = () => forceUpdate({});
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    return () => {
+      listeners.delete(listener);
+    };
   }, []);
-
-  useState(() => {
-    subscribe();
-  });
 
   const uploadFile = async (file: File, prefix?: string) => {
     const id = generateId();
@@ -91,10 +108,11 @@ export function useUpload() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["files"] });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Upload failed";
       setUploads((prev) =>
         prev.map((u) =>
-          u.id === id ? { ...u, status: "error", error: error.message } : u
+          u.id === id ? { ...u, status: "error", error: message } : u
         )
       );
     }
@@ -102,9 +120,11 @@ export function useUpload() {
 
   const uploadFiles = async (files: FileList | File[], prefix?: string) => {
     const fileArray = Array.from(files);
-    for (const file of fileArray) {
-      await uploadFile(file, prefix);
-    }
+    await parallelWithLimit(
+      fileArray,
+      (file) => uploadFile(file, prefix),
+      MAX_CONCURRENT_UPLOADS
+    );
   };
 
   const removeUpload = (id: string) => {

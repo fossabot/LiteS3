@@ -65,6 +65,8 @@ async function moveFile({ sourceKey, destKey, bucketId }: { sourceKey: string; d
   return res.json();
 }
 
+// Note: The copy operation is handled by the POST method on the /api/files/move endpoint.
+// Do NOT change this path to /api/files/copy, as that endpoint does not exist and would cause a 404.
 async function copyFile({ sourceKey, destKey, bucketId }: { sourceKey: string; destKey: string; bucketId?: string | null }) {
   const res = await fetch("/api/files/move", {
     method: "POST",

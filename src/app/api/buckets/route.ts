@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import {
   listAllBuckets,
   createBucketConfig,
@@ -8,6 +10,11 @@ import {
 import { ensureDatabase } from "@/lib/db";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureDatabase();
     const buckets = await listAllBuckets();
@@ -22,27 +29,53 @@ export async function GET() {
     }));
     
     return NextResponse.json({ buckets: safeBuckets });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("GET /api/buckets error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to list buckets" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to list buckets" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     await ensureDatabase();
     const body = await request.json();
     const { action, config } = body;
 
     if (action === "test") {
+      if (!config.bucketName) {
+        return NextResponse.json({ success: false, error: "BUCKET_NAME_REQUIRED" });
+      }
+      if (!config.endpoint) {
+        return NextResponse.json({ success: false, error: "ENDPOINT_REQUIRED" });
+      }
+      if (!config.accessKeyId) {
+        return NextResponse.json({ success: false, error: "ACCESS_KEY_REQUIRED" });
+      }
+      if (!config.secretAccessKey) {
+        return NextResponse.json({ success: false, error: "SECRET_KEY_REQUIRED" });
+      }
       const result = await testBucketConnection(config);
       return NextResponse.json(result);
     }
 
     if (action === "create") {
+      if (!config.bucketName) {
+        return NextResponse.json({ error: "BUCKET_NAME_REQUIRED" }, { status: 400 });
+      }
+      if (!config.endpoint) {
+        return NextResponse.json({ error: "ENDPOINT_REQUIRED" }, { status: 400 });
+      }
+      if (!config.accessKeyId) {
+        return NextResponse.json({ error: "ACCESS_KEY_REQUIRED" }, { status: 400 });
+      }
+      if (!config.secretAccessKey) {
+        return NextResponse.json({ error: "SECRET_KEY_REQUIRED" }, { status: 400 });
+      }
       const newBucket = await createBucketConfig({
         name: config.name,
         endpoint: config.endpoint,
@@ -69,11 +102,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("POST /api/buckets error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Operation failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
   }
 }

@@ -59,7 +59,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       transition.ready.then(() => {
         root.classList.add("theme-vt-active");
         setTimeout(() => root.classList.remove("theme-vt-active"), 400);
-      });
+      }).catch(() => {});
     } else {
       root.classList.add("theme-transition");
       applyTheme(effectiveTheme);

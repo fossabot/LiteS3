@@ -1,55 +1,49 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createDatabase, schema, setDatabaseInstance } from "./lib/db";
-import { eq } from "drizzle-orm";
 
+const SIGNIN_PATH = "/auth/signin";
 const SETUP_PATH = "/setup";
-const PUBLIC_PATHS = [SETUP_PATH, "/api/setup", "/api/system/status"];
-const STATIC_PATHS = ["/_next", "/favicon.ico", "/images"];
+const PUBLIC_PATHS = [SIGNIN_PATH, SETUP_PATH];
+const PUBLIC_API_PREFIXES = ["/api/auth", "/api/setup", "/api/system/status"];
+const STATIC_PATHS = ["/_next", "/favicon.ico", "/images", "/icon.svg"];
 
-async function checkSetupCompleted(): Promise<boolean> {
-  try {
-    const configStr = process.env.DATABASE_CONFIG;
-    if (!configStr) return false;
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 
-    const config = JSON.parse(configStr);
-    const db = await createDatabase(config);
-    setDatabaseInstance(db, config);
+function isPublicApi(pathname: string): boolean {
+  return PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
+}
 
-    const result = await db
-      .select()
-      .from(schema.systemSettings)
-      .where(eq(schema.systemSettings.key, "setup_completed"))
-      .limit(1);
+function isStaticPath(pathname: string): boolean {
+  return STATIC_PATHS.some((p) => pathname.startsWith(p));
+}
 
-    return result.length > 0 && result[0].value === "true";
-  } catch {
-    return false;
-  }
+function hasSession(request: NextRequest): boolean {
+  return !!(
+    request.cookies.get("next-auth.session-token")?.value ||
+    request.cookies.get("__Secure-next-auth.session-token")?.value
+  );
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (STATIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (isStaticPath(pathname)) {
     return NextResponse.next();
   }
 
-  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+  if (isPublicPath(pathname) || isPublicApi(pathname)) {
     return NextResponse.next();
   }
 
-  const isSetupCompleted = await checkSetupCompleted();
-
-  if (!isSetupCompleted && pathname !== SETUP_PATH) {
+  if (!hasSession(request)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
-    url.pathname = SETUP_PATH;
-    return NextResponse.redirect(url);
-  }
-
-  if (isSetupCompleted && pathname === SETUP_PATH) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = SIGNIN_PATH;
+    url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }
 
@@ -58,6 +52,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|images).*)",
+    "/((?!_next/static|_next/image|favicon.ico|images|icon.svg).*)",
   ],
 };
